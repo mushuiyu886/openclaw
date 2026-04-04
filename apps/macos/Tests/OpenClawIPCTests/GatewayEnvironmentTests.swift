@@ -31,6 +31,20 @@ struct GatewayEnvironmentTests {
         #expect(Semver(major: 1, minor: 9, patch: 9).compatible(with: required) == false)
     }
 
+    @Test func `gateway version output strips product prefix and commit hash`() {
+        // Regression test: "OpenClaw 2026.4.2 (d74a122)" was not parsing correctly
+        let normalized = GatewayEnvironment.normalizeGatewayVersionOutput("OpenClaw 2026.4.2 (d74a122)")
+        #expect(normalized == "2026.4.2")
+        #expect(Semver.parse(normalized) == Semver(major: 2026, minor: 4, patch: 2))
+    }
+
+    @Test func `gateway version output handles various formats`() {
+        #expect(GatewayEnvironment.normalizeGatewayVersionOutput("  OpenClaw 2026.3.23-1 \n") == "2026.3.23-1")
+        #expect(GatewayEnvironment.normalizeGatewayVersionOutput("v1.2.3") == "v1.2.3")
+        #expect(GatewayEnvironment.normalizeGatewayVersionOutput(nil) == nil)
+        #expect(GatewayEnvironment.normalizeGatewayVersionOutput("") == nil)
+    }
+
     @Test func `gateway port defaults and respects override`() async {
         let configPath = TestIsolation.tempConfigPath()
         await TestIsolation.withIsolatedState(
