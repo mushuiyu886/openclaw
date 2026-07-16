@@ -270,10 +270,70 @@ jobs:
 
       - name: Open restricted interactive Windows proof terminal
         if: ${{ inputs.run_windows_ci }}
+        id: tmate
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3
         timeout-minutes: 30
         with:
+          detached: true
           limit-access-to-actor: true
+
+      - name: Encrypt proof terminal connection
+        if: ${{ inputs.run_windows_ci }}
+        shell: pwsh
+        env:
+          SSH_COMMAND: ${{ steps.tmate.outputs.ssh-command }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $publicKey = @'
+          -----BEGIN PUBLIC KEY-----
+          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAv83+JG08uEEtyq8plwbN
+          uiKG9Sv+5AkSBvoeZnlYQEn1mTzXQ78E+S3TmH7/OF9RuA2Zf3PmCt3mV2pgBX0m
+          dLL/IMtTBzJCtye4T/FCA52y2in5CBSm+mxx4kL2txohg+Vm9o6Io45RJORvPoXT
+          fJ6A/aLt4wqdJSaqGoRntXN2e9xVg/LKekZsIprweVK82STxxnYkaP2s9OZk+Odc
+          +MzeB06ikrADgtA1xCffD0V5pngTel5ChqG9rR3RDj109lFp6qtanmHdNRTMlIp8
+          FuBJXxOMke+8XpGK4vL13BPCFdN7620BlrsNTxiUw7yQ5L4SdIXRgSWY9qQMUYa0
+          lVb/8vzQZAy988IptSnZatjekz97bn944tkcbIY+HkAvlqw5ZSV4FreDgZbAr7eK
+          MZ9lejPvJPHvdAgWcL6v5ftVbf1pCSr8o5Y8i95BBWBwfnipiI8tzt3W/7TbJfoL
+          m/98/i8cJzB7wF5FHfRx2JvAQmlhRfq6SPFnmWzBQ6LtAgMBAAE=
+          -----END PUBLIC KEY-----
+          '@
+          $rsa = [System.Security.Cryptography.RSA]::Create()
+          $rsa.ImportFromPem($publicKey)
+          $plain = [System.Text.Encoding]::UTF8.GetBytes($env:SSH_COMMAND)
+          $encrypted = $rsa.Encrypt(
+            $plain,
+            [System.Security.Cryptography.RSAEncryptionPadding]::OaepSHA256
+          )
+          [System.IO.File]::WriteAllText(
+            "$env:RUNNER_TEMP\tmate-command.enc",
+            [Convert]::ToBase64String($encrypted),
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
+      - name: Upload encrypted proof terminal connection
+        if: ${{ inputs.run_windows_ci }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: pr-105274-proof-terminal-${{ github.run_id }}
+          path: ${{ runner.temp }}\tmate-command.enc
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Wait for proof completion
+        if: ${{ inputs.run_windows_ci }}
+        shell: pwsh
+        timeout-minutes: 25
+        run: |
+          $ErrorActionPreference = "Stop"
+          $continuePath = Join-Path $env:GITHUB_WORKSPACE "continue"
+          for ($attempt = 0; $attempt -lt 300; $attempt++) {
+            if (Test-Path -LiteralPath $continuePath) {
+              Write-Host "proof_complete=true"
+              exit 0
+            }
+            Start-Sleep -Seconds 5
+          }
+          throw "Timed out waiting for the proof terminal to create the continue file."
 
       - name: Run Windows CI tests
         if: ${{ inputs.run_windows_ci }}
