@@ -7,6 +7,10 @@ on:
         description: "Exact commit SHA to verify"
         required: true
         type: string
+      base_ref:
+        description: "Exact upstream base SHA for diff validation"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -24,6 +28,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ inputs.target_ref }}
+          fetch-depth: 0
           persist-credentials: false
           submodules: false
 
@@ -31,6 +36,13 @@ jobs:
         env:
           EXPECTED_HEAD: ${{ inputs.target_ref }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Fetch exact upstream base
+        env:
+          EXPECTED_BASE: ${{ inputs.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git "$EXPECTED_BASE"
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_BASE"
 
       - name: Setup Node environment
         uses: ./.github/actions/setup-node-env
@@ -40,3 +52,29 @@ jobs:
 
       - name: Run focused regression
         run: node scripts/run-vitest.mjs src/agents/cli-runner/session-history.test.ts --no-coverage
+
+      - name: Check formatting and lint
+        run: |
+          node_modules/.bin/oxfmt --check \
+            src/agents/cli-runner/session-history.ts \
+            src/agents/cli-runner/session-history.test.ts \
+            src/config/sessions/session-accessor.sqlite-read.ts \
+            src/config/sessions/session-accessor.sqlite.ts \
+            src/config/sessions/session-accessor.transcript.ts \
+            src/config/sessions/session-accessor.ts
+          node_modules/.bin/oxlint \
+            src/agents/cli-runner/session-history.ts \
+            src/agents/cli-runner/session-history.test.ts \
+            src/config/sessions/session-accessor.sqlite-read.ts \
+            src/config/sessions/session-accessor.sqlite.ts \
+            src/config/sessions/session-accessor.transcript.ts \
+            src/config/sessions/session-accessor.ts
+
+      - name: Check core types
+        run: |
+          mkdir -p .artifacts/tsgo-cache
+          node scripts/run-tsgo.mjs -p tsconfig.core.json --incremental \
+            --tsBuildInfoFile .artifacts/tsgo-cache/core.tsbuildinfo
+
+      - name: Check patch whitespace
+        run: git diff --check FETCH_HEAD...HEAD
