@@ -11,6 +11,10 @@ on:
         description: "Exact upstream base SHA for diff validation"
         required: true
         type: string
+      merge_base_ref:
+        description: "Exact PR merge-base SHA for patch validation"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -28,7 +32,6 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ inputs.target_ref }}
-          fetch-depth: 50
           persist-credentials: false
           submodules: false
 
@@ -40,9 +43,13 @@ jobs:
       - name: Fetch exact upstream base
         env:
           EXPECTED_BASE: ${{ inputs.base_ref }}
+          EXPECTED_MERGE_BASE: ${{ inputs.merge_base_ref }}
         run: |
-          git fetch --no-tags --depth=50 https://github.com/openclaw/openclaw.git "$EXPECTED_BASE"
+          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git "$EXPECTED_BASE"
           test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_BASE"
+          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git \
+            "$EXPECTED_MERGE_BASE:refs/remotes/upstream/pr-merge-base"
+          test "$(git rev-parse refs/remotes/upstream/pr-merge-base)" = "$EXPECTED_MERGE_BASE"
 
       - name: Setup Node environment
         uses: ./.github/actions/setup-node-env
@@ -85,4 +92,4 @@ jobs:
             --tsBuildInfoFile .artifacts/tsgo-cache/core.tsbuildinfo
 
       - name: Check patch whitespace
-        run: git diff --check FETCH_HEAD...HEAD
+        run: git diff --check refs/remotes/upstream/pr-merge-base HEAD
