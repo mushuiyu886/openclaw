@@ -272,7 +272,7 @@ jobs:
         if: ${{ inputs.run_windows_ci }}
         shell: pwsh
         env:
-          EXPECTED_HEAD: f7701a4b214a4b0aa6659146673026f29c20a0a6
+          EXPECTED_HEAD: e22cfd34043e253010e2e5f83e4afb2077dda1ad
         run: |
           $ErrorActionPreference = "Stop"
           $scriptPath = Join-Path $env:RUNNER_TEMP "pr105274-windows-proof.mts"
