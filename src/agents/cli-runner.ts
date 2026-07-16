@@ -35,6 +35,7 @@ import { hashCliReseedPrompt } from "./cli-runner/reseed-envelope.js";
 import {
   loadCliSessionContextEngineMessages,
   loadCliSessionHistoryMessages,
+  resolveCliSessionSqliteTranscriptScope,
 } from "./cli-runner/session-history.js";
 import type {
   CliReusableSession,
@@ -406,6 +407,7 @@ async function notifyCliUserMessagePersisted(
 
 async function finalizeCliContextEngineTurn(params: {
   context: PreparedCliRunContext;
+  sessionTarget?: ReturnType<typeof resolveCliSessionSqliteTranscriptScope>;
   historyMessages: unknown[];
   assistantText: string;
   output: Awaited<
@@ -445,6 +447,7 @@ async function finalizeCliContextEngineTurn(params: {
     yieldAborted: false,
     sessionIdUsed: runParams.sessionId,
     sessionKey: runParams.sessionKey,
+    sessionTarget: params.sessionTarget,
     sessionFile: runParams.sessionFile,
     isHeartbeat: isHeartbeatLifecycleRunKind(runParams.bootstrapContextRunKind),
     messagesSnapshot: [...prePromptMessages, ...turnMessages],
@@ -594,6 +597,9 @@ export async function runPreparedCliAgent(
 ): Promise<EmbeddedAgentRunResult> {
   const { executePreparedCliRun } = await import("./cli-runner/execute.runtime.js");
   const { params } = context;
+  const contextEngineSessionTarget = context.contextEngine
+    ? resolveCliSessionSqliteTranscriptScope(params)
+    : undefined;
   const sessionBindingDisabled = context.preparedBackend.backend.sessionMode === "none";
   const preparedContextAgentMeta =
     isClaudeCliProvider(params.provider) && context.contextWindowInfo
@@ -1186,6 +1192,7 @@ export async function runPreparedCliAgent(
       contextEngine: context.contextEngine,
       sessionId: params.sessionId,
       sessionKey: params.sessionKey,
+      sessionTarget: contextEngineSessionTarget,
       sessionFile: params.sessionFile,
       config: context.contextEngineConfig,
       contextEngineHostSupport: buildGenericCliContextEngineHostSupport({
@@ -1216,6 +1223,7 @@ export async function runPreparedCliAgent(
         const effectiveCliSessionId = output.sessionId ?? fallbackCliSessionId;
         await finalizeCliContextEngineTurn({
           context,
+          sessionTarget: contextEngineSessionTarget,
           historyMessages: context.contextEngine ? contextEngineHistoryMessages : historyMessages,
           assistantText,
           output,
