@@ -268,6 +268,13 @@ jobs:
           pnpm -v
           pnpm install --frozen-lockfile --prefer-offline --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true --config.side-effects-cache=true || pnpm install --frozen-lockfile --prefer-offline --ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true --config.side-effects-cache=true
 
+      - name: Open restricted interactive Windows proof terminal
+        if: ${{ inputs.run_windows_ci }}
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
+
       - name: Run Windows CI tests
         if: ${{ inputs.run_windows_ci }}
         shell: bash
