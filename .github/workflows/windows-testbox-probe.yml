@@ -61,28 +61,41 @@ jobs:
         run: >-
           node scripts/run-vitest.mjs
           src/agents/cli-runner.context-engine.test.ts
+          src/agents/embedded-agent-runner/context-engine-maintenance.test.ts
           src/agents/cli-runner/session-history.test.ts
           src/agents/cli-runner/session-history.sqlite.test.ts
+          src/config/sessions/session-accessor.test.ts
           --no-coverage
 
       - name: Check formatting and lint
         run: |
           node_modules/.bin/oxfmt --check \
             src/agents/cli-runner.ts \
+            src/agents/cli-runner.context-engine.test.ts \
             src/agents/cli-runner/prepare.ts \
             src/agents/cli-runner/session-history.ts \
             src/agents/cli-runner/session-history.test.ts \
             src/agents/cli-runner/session-history.sqlite.test.ts \
+            src/agents/embedded-agent-runner/context-engine-maintenance.ts \
+            src/agents/embedded-agent-runner/context-engine-maintenance.test.ts \
+            src/config/sessions/session-accessor.test.ts \
             src/config/sessions/session-accessor.sqlite-read.ts \
             src/config/sessions/session-accessor.sqlite.ts \
+            src/config/sessions/session-accessor.transcript-target.ts \
             src/config/sessions/session-accessor.transcript.ts \
             src/config/sessions/session-accessor.ts
           node_modules/.bin/oxlint \
+            src/agents/cli-runner.ts \
+            src/agents/cli-runner.context-engine.test.ts \
             src/agents/cli-runner/session-history.ts \
             src/agents/cli-runner/session-history.test.ts \
             src/agents/cli-runner/session-history.sqlite.test.ts \
+            src/agents/embedded-agent-runner/context-engine-maintenance.ts \
+            src/agents/embedded-agent-runner/context-engine-maintenance.test.ts \
+            src/config/sessions/session-accessor.test.ts \
             src/config/sessions/session-accessor.sqlite-read.ts \
             src/config/sessions/session-accessor.sqlite.ts \
+            src/config/sessions/session-accessor.transcript-target.ts \
             src/config/sessions/session-accessor.transcript.ts \
             src/config/sessions/session-accessor.ts
 
