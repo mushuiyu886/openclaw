@@ -50,7 +50,11 @@ jobs:
           node-version: 24.x
 
       - name: Run focused regression
-        run: node scripts/run-vitest.mjs src/agents/cli-runner/session-history.test.ts --no-coverage
+        run: >-
+          node scripts/run-vitest.mjs
+          src/agents/cli-runner/session-history.test.ts
+          src/agents/cli-runner/session-history.sqlite.test.ts
+          --no-coverage
 
       - name: Check formatting and lint
         run: |
@@ -59,6 +63,7 @@ jobs:
             src/agents/cli-runner/prepare.ts \
             src/agents/cli-runner/session-history.ts \
             src/agents/cli-runner/session-history.test.ts \
+            src/agents/cli-runner/session-history.sqlite.test.ts \
             src/config/sessions/session-accessor.sqlite-read.ts \
             src/config/sessions/session-accessor.sqlite.ts \
             src/config/sessions/session-accessor.transcript.ts \
@@ -66,6 +71,7 @@ jobs:
           node_modules/.bin/oxlint \
             src/agents/cli-runner/session-history.ts \
             src/agents/cli-runner/session-history.test.ts \
+            src/agents/cli-runner/session-history.sqlite.test.ts \
             src/config/sessions/session-accessor.sqlite-read.ts \
             src/config/sessions/session-accessor.sqlite.ts \
             src/config/sessions/session-accessor.transcript.ts \
