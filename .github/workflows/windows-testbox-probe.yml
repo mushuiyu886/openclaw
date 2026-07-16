@@ -64,8 +64,6 @@ jobs:
             src/config/sessions/session-accessor.transcript.ts \
             src/config/sessions/session-accessor.ts
           node_modules/.bin/oxlint \
-            src/agents/cli-runner.ts \
-            src/agents/cli-runner/prepare.ts \
             src/agents/cli-runner/session-history.ts \
             src/agents/cli-runner/session-history.test.ts \
             src/config/sessions/session-accessor.sqlite-read.ts \
