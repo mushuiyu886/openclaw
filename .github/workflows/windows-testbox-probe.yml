@@ -55,7 +55,14 @@ jobs:
 
       - name: Check formatting and lint
         run: |
-          node_modules/.bin/oxfmt --check \
+          node_modules/.bin/oxfmt \
+            src/agents/cli-runner/session-history.ts \
+            src/agents/cli-runner/session-history.test.ts \
+            src/config/sessions/session-accessor.sqlite-read.ts \
+            src/config/sessions/session-accessor.sqlite.ts \
+            src/config/sessions/session-accessor.transcript.ts \
+            src/config/sessions/session-accessor.ts
+          git diff --exit-code -- \
             src/agents/cli-runner/session-history.ts \
             src/agents/cli-runner/session-history.test.ts \
             src/config/sessions/session-accessor.sqlite-read.ts \
