@@ -41,7 +41,7 @@ jobs:
         env:
           EXPECTED_BASE: ${{ inputs.base_ref }}
         run: |
-          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git "$EXPECTED_BASE"
+          git fetch --no-tags --depth=50 https://github.com/openclaw/openclaw.git "$EXPECTED_BASE"
           test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_BASE"
 
       - name: Setup Node environment
