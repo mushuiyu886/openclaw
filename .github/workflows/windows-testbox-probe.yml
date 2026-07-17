@@ -55,8 +55,12 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git "$EXPECTED_BASE"
           test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_BASE"
-          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git \
-            "$EXPECTED_MERGE_BASE:refs/remotes/upstream/pr-merge-base"
+          if [ "$EXPECTED_MERGE_BASE" = "$EXPECTED_BASE" ]; then
+            git update-ref refs/remotes/upstream/pr-merge-base "$EXPECTED_BASE"
+          else
+            git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git \
+              "$EXPECTED_MERGE_BASE:refs/remotes/upstream/pr-merge-base"
+          fi
           test "$(git rev-parse refs/remotes/upstream/pr-merge-base)" = "$EXPECTED_MERGE_BASE"
 
       - name: Setup Node environment
