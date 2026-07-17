@@ -280,14 +280,14 @@ jobs:
           export PROOF_HOOK_LOG="$hook_log"
           export PROOF_CLI_LOG="$cli_log"
 
-          node openclaw.mjs agent \
+          pnpm openclaw agent \
             --local \
             --agent main \
             --session-id proof-session \
             --model proof-cli/proof-model \
             --message PROOF_FIRST_ASK \
             --json > "$proof_root/first.json"
-          node openclaw.mjs agent \
+          pnpm openclaw agent \
             --local \
             --agent main \
             --session-id proof-session \
