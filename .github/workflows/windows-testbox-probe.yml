@@ -15,6 +15,14 @@ on:
         description: "Exact PR merge-base SHA for patch validation"
         required: true
         type: string
+      live_expectation:
+        description: "SQLite CLI resume expectation"
+        required: true
+        default: "restored"
+        type: choice
+        options:
+          - missing
+          - restored
 
 permissions:
   contents: read
@@ -58,6 +66,7 @@ jobs:
           node-version: 24.x
 
       - name: Run focused regression
+        if: inputs.live_expectation == 'restored'
         run: >-
           node scripts/run-vitest.mjs
           src/agents/cli-runner.context-engine.test.ts
@@ -68,6 +77,7 @@ jobs:
           --no-coverage
 
       - name: Check formatting and lint
+        if: inputs.live_expectation == 'restored'
         run: |
           node_modules/.bin/oxfmt --check \
             src/agents/cli-runner.ts \
@@ -100,10 +110,258 @@ jobs:
             src/config/sessions/session-accessor.ts
 
       - name: Check core types
+        if: inputs.live_expectation == 'restored'
         run: |
           mkdir -p .artifacts/tsgo-cache
           node scripts/run-tsgo.mjs -p tsconfig.core.json --incremental \
             --tsBuildInfoFile .artifacts/tsgo-cache/core.tsbuildinfo
 
       - name: Check patch whitespace
+        if: inputs.live_expectation == 'restored'
         run: git diff --check refs/remotes/upstream/pr-merge-base HEAD
+
+      - name: Prove SQLite-backed CLI session resume
+        env:
+          LIVE_EXPECTATION: ${{ inputs.live_expectation }}
+        run: |
+          set -euo pipefail
+
+          proof_root="$RUNNER_TEMP/pr109038-cli-resume"
+          state_dir="$proof_root/state"
+          plugin_dir="$proof_root/proof-cli-plugin"
+          workspace_dir="$proof_root/workspace"
+          fake_cli="$proof_root/proof-cli.mjs"
+          hook_log="$proof_root/hook.jsonl"
+          cli_log="$proof_root/cli.jsonl"
+          config_path="$proof_root/openclaw.json"
+          mkdir -p "$state_dir" "$plugin_dir" "$workspace_dir" "$proof_root/home"
+
+          cat > "$plugin_dir/package.json" <<'JSON'
+          {
+            "name": "@proof/openclaw-sqlite-cli-resume",
+            "version": "1.0.0",
+            "type": "module",
+            "openclaw": {
+              "extensions": ["./index.ts"]
+            }
+          }
+          JSON
+
+          cat > "$plugin_dir/openclaw.plugin.json" <<'JSON'
+          {
+            "id": "proof-cli",
+            "name": "SQLite CLI Resume Proof",
+            "description": "Test-only local CLI backend and lifecycle observer",
+            "cliBackends": ["proof-cli"],
+            "setup": {
+              "cliBackends": ["proof-cli"],
+              "requiresRuntime": false
+            },
+            "activation": {
+              "onStartup": true
+            },
+            "configSchema": {
+              "type": "object",
+              "additionalProperties": false
+            }
+          }
+          JSON
+
+          cat > "$plugin_dir/index.ts" <<'TS'
+          import fs from "node:fs";
+          import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
+
+          function messagesContain(messages: unknown[], needle: string): boolean {
+            return JSON.stringify(messages).includes(needle);
+          }
+
+          export default definePluginEntry({
+            id: "proof-cli",
+            name: "SQLite CLI Resume Proof",
+            description: "Test-only local CLI backend and lifecycle observer",
+            register(api) {
+              const command = process.env.PROOF_CLI_PATH;
+              const hookLog = process.env.PROOF_HOOK_LOG;
+              if (!command || !hookLog) {
+                throw new Error("proof paths are required");
+              }
+              api.registerCliBackend({
+                id: "proof-cli",
+                nativeToolMode: "none",
+                config: {
+                  command,
+                  args: [],
+                  output: "text",
+                  input: "stdin",
+                  sessionMode: "none",
+                  serialize: true,
+                },
+              });
+              api.on("before_agent_run", (event, ctx) => {
+                const hasFirstUser = messagesContain(event.messages, "PROOF_FIRST_ASK");
+                const hasFirstAssistant = messagesContain(event.messages, "PROOF_REPLY_ONE");
+                fs.appendFileSync(
+                  hookLog,
+                  `${JSON.stringify({
+                    prompt: event.prompt,
+                    sessionId: ctx.sessionId,
+                    historyCount: event.messages.length,
+                    hasFirstUser,
+                    hasFirstAssistant,
+                  })}\n`,
+                );
+                if (
+                  event.prompt.includes("PROOF_SECOND_ASK") &&
+                  (!hasFirstUser || !hasFirstAssistant)
+                ) {
+                  return {
+                    outcome: "block",
+                    reason: "SQLite CLI history missing",
+                    message: "PROOF_HISTORY_MISSING",
+                  };
+                }
+                return { outcome: "pass" };
+              });
+            },
+          });
+          TS
+
+          cat > "$fake_cli" <<'JS'
+          #!/usr/bin/env node
+          import fs from "node:fs";
+
+          let prompt = "";
+          for await (const chunk of process.stdin) {
+            prompt += chunk;
+          }
+          fs.appendFileSync(
+            process.env.PROOF_CLI_LOG,
+            `${JSON.stringify({
+              hasFirstAsk: prompt.includes("PROOF_FIRST_ASK"),
+              hasSecondAsk: prompt.includes("PROOF_SECOND_ASK"),
+            })}\n`,
+          );
+          process.stdout.write(
+            prompt.includes("PROOF_SECOND_ASK") ? "PROOF_REPLY_TWO" : "PROOF_REPLY_ONE",
+          );
+          JS
+          chmod +x "$fake_cli"
+
+          node - "$config_path" "$plugin_dir" "$workspace_dir" <<'NODE'
+          const fs = require("node:fs");
+          const [configPath, pluginDir, workspaceDir] = process.argv.slice(2);
+          fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+              plugins: {
+                load: { paths: [pluginDir] },
+                allow: ["proof-cli"],
+                entries: {
+                  "proof-cli": {
+                    enabled: true,
+                    hooks: { allowConversationAccess: true },
+                  },
+                },
+              },
+              agents: {
+                defaults: {
+                  workspace: workspaceDir,
+                  model: { primary: "proof-cli/proof-model" },
+                },
+              },
+            }),
+          );
+          NODE
+
+          export HOME="$proof_root/home"
+          export OPENCLAW_STATE_DIR="$state_dir"
+          export OPENCLAW_CONFIG_PATH="$config_path"
+          export PROOF_CLI_PATH="$fake_cli"
+          export PROOF_HOOK_LOG="$hook_log"
+          export PROOF_CLI_LOG="$cli_log"
+
+          node openclaw.mjs agent \
+            --local \
+            --agent main \
+            --session-id proof-session \
+            --model proof-cli/proof-model \
+            --message PROOF_FIRST_ASK \
+            --json > "$proof_root/first.json"
+          node openclaw.mjs agent \
+            --local \
+            --agent main \
+            --session-id proof-session \
+            --model proof-cli/proof-model \
+            --message PROOF_SECOND_ASK \
+            --json > "$proof_root/second.json"
+
+          node - \
+            "$LIVE_EXPECTATION" \
+            "$proof_root/first.json" \
+            "$proof_root/second.json" \
+            "$hook_log" \
+            "$cli_log" \
+            "$state_dir/agents/main/agent/openclaw-agent.sqlite" <<'NODE'
+          const fs = require("node:fs");
+          const { DatabaseSync } = require("node:sqlite");
+          const [expectation, firstPath, secondPath, hookPath, cliPath, databasePath] =
+            process.argv.slice(2);
+          const firstOutput = fs.readFileSync(firstPath, "utf8");
+          const secondOutput = fs.readFileSync(secondPath, "utf8");
+          const hooks = fs
+            .readFileSync(hookPath, "utf8")
+            .trim()
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => JSON.parse(line));
+          const cliCalls = fs
+            .readFileSync(cliPath, "utf8")
+            .trim()
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => JSON.parse(line));
+          const secondHook = hooks.find((entry) => entry.prompt.includes("PROOF_SECOND_ASK"));
+          if (!firstOutput.includes("PROOF_REPLY_ONE")) {
+            throw new Error("first CLI turn did not complete");
+          }
+          if (!secondHook) {
+            throw new Error("second before_agent_run hook was not observed");
+          }
+
+          const db = new DatabaseSync(databasePath, { readOnly: true });
+          const entryRows = db.prepare("SELECT entry_json FROM session_entries").all();
+          const sessionEntry = entryRows
+            .map((row) => JSON.parse(row.entry_json))
+            .find((entry) => entry.sessionId === "proof-session");
+          const transcriptCount = db
+            .prepare("SELECT COUNT(*) AS count FROM transcript_events WHERE session_id = ?")
+            .get("proof-session").count;
+          db.close();
+          if (!sessionEntry?.sessionFile?.startsWith("sqlite:main:proof-session:")) {
+            throw new Error("session did not persist a SQLite transcript marker");
+          }
+
+          const restored = secondHook.hasFirstUser && secondHook.hasFirstAssistant;
+          if (expectation === "missing") {
+            if (restored || !secondOutput.includes("PROOF_HISTORY_MISSING") || cliCalls.length !== 1) {
+              throw new Error("baseline unexpectedly restored SQLite CLI history");
+            }
+          } else if (
+            !restored ||
+            !secondOutput.includes("PROOF_REPLY_TWO") ||
+            cliCalls.length !== 2
+          ) {
+            throw new Error("fixed head did not restore SQLite CLI history");
+          }
+
+          console.log(`proof_expectation=${expectation}`);
+          console.log("sqlite_marker=true");
+          console.log(`transcript_event_count=${transcriptCount}`);
+          console.log(`second_hook_history_count=${secondHook.historyCount}`);
+          console.log(`second_hook_has_first_user=${secondHook.hasFirstUser}`);
+          console.log(`second_hook_has_first_assistant=${secondHook.hasFirstAssistant}`);
+          console.log(`cli_invocation_count=${cliCalls.length}`);
+          console.log(
+            `second_turn_result=${secondOutput.includes("PROOF_REPLY_TWO") ? "provider-called" : "history-missing-block"}`,
+          );
+          NODE
