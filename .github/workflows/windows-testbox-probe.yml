@@ -74,6 +74,7 @@ jobs:
           src/agents/cli-runner/session-history.test.ts
           src/agents/cli-runner/session-history.sqlite.test.ts
           src/config/sessions/session-accessor.test.ts
+          src/gateway/worker-environments/transcript-commit.test.ts
           --no-coverage
 
       - name: Check formatting and lint
@@ -108,6 +109,10 @@ jobs:
             src/config/sessions/session-accessor.transcript-target.ts \
             src/config/sessions/session-accessor.transcript.ts \
             src/config/sessions/session-accessor.ts
+
+      - name: Check dependency exports
+        if: inputs.live_expectation == 'restored'
+        run: pnpm deadcode:dependencies
 
       - name: Check core types
         if: inputs.live_expectation == 'restored'
