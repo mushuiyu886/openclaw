@@ -77,6 +77,7 @@ jobs:
           src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts
           src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts
           src/agents/embedded-agent-runner/context-engine-maintenance.test.ts
+          src/agents/embedded-agent-runner/transcript-rewrite.test.ts
           src/agents/cli-runner/session-history.test.ts
           src/agents/cli-runner/session-history.sqlite.test.ts
           src/config/sessions/session-accessor.test.ts
@@ -99,6 +100,7 @@ jobs:
             src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts \
             src/agents/embedded-agent-runner/context-engine-maintenance.ts \
             src/agents/embedded-agent-runner/context-engine-maintenance.test.ts \
+            src/agents/embedded-agent-runner/transcript-rewrite.test.ts \
             src/config/sessions/session-accessor.test.ts \
             src/config/sessions/session-accessor.sqlite-read.ts \
             src/config/sessions/session-accessor.sqlite.ts \
@@ -117,6 +119,7 @@ jobs:
             src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts \
             src/agents/embedded-agent-runner/context-engine-maintenance.ts \
             src/agents/embedded-agent-runner/context-engine-maintenance.test.ts \
+            src/agents/embedded-agent-runner/transcript-rewrite.test.ts \
             src/config/sessions/session-accessor.test.ts \
             src/config/sessions/session-accessor.sqlite-read.ts \
             src/config/sessions/session-accessor.sqlite.ts \
