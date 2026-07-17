@@ -70,6 +70,8 @@ jobs:
         run: >-
           node scripts/run-vitest.mjs
           src/agents/cli-runner.context-engine.test.ts
+          src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts
+          src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts
           src/agents/embedded-agent-runner/context-engine-maintenance.test.ts
           src/agents/cli-runner/session-history.test.ts
           src/agents/cli-runner/session-history.sqlite.test.ts
@@ -87,6 +89,10 @@ jobs:
             src/agents/cli-runner/session-history.ts \
             src/agents/cli-runner/session-history.test.ts \
             src/agents/cli-runner/session-history.sqlite.test.ts \
+            src/agents/embedded-agent-runner/cli-backend-dispatch.ts \
+            src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts \
+            src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.ts \
+            src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts \
             src/agents/embedded-agent-runner/context-engine-maintenance.ts \
             src/agents/embedded-agent-runner/context-engine-maintenance.test.ts \
             src/config/sessions/session-accessor.test.ts \
@@ -101,6 +107,10 @@ jobs:
             src/agents/cli-runner/session-history.ts \
             src/agents/cli-runner/session-history.test.ts \
             src/agents/cli-runner/session-history.sqlite.test.ts \
+            src/agents/embedded-agent-runner/cli-backend-dispatch.ts \
+            src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts \
+            src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.ts \
+            src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts \
             src/agents/embedded-agent-runner/context-engine-maintenance.ts \
             src/agents/embedded-agent-runner/context-engine-maintenance.test.ts \
             src/config/sessions/session-accessor.test.ts \
