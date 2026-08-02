@@ -29,7 +29,7 @@ jobs:
         name: Checkout
         env:
           CHECKOUT_REPO: ${{ github.repository }}
-          CHECKOUT_SHA: d817569e9c40bb9e975cc480f324226e98c3649d
+          CHECKOUT_SHA: 9a619931b6ab24cb1b39943456a740ae4b72f01b
         run: |
           set -euo pipefail
           git init "$GITHUB_WORKSPACE"
@@ -231,13 +231,18 @@ jobs:
       - name: Run focused PR 109038 regression
         run: >-
           node scripts/run-vitest.mjs
+          src/agents/cli-runner.context-engine.test.ts
+          src/agents/cli-runner/prepare.test.ts
           src/agents/cli-runner/session-history.sqlite.test.ts
+          src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts
           --no-coverage
 
       - name: Check focused formatting and lint
-        if: ${{ false }}
         run: |
           files=(
+            src/agents/cli-runner.context-engine.test.ts
+            src/agents/cli-runner.ts
+            src/agents/cli-runner/prepare.ts
             src/agents/cli-runner/session-history.ts
             src/agents/cli-runner/session-history.sqlite.test.ts
           )
@@ -249,14 +254,12 @@ jobs:
         run: pnpm deadcode:dependencies
 
       - name: Check test types
-        if: ${{ false }}
         run: pnpm check:test-types
 
       - name: Check patch whitespace
-        if: ${{ false }}
         run: |
-          git fetch --no-tags --depth=20 origin refs/heads/proof/pr-109038-jsonl-newline-green
-          git diff --check 9a433136c4f5977345070c34a0c466da21c80d26 HEAD
+          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git 096cd231ea7425790280de89c671a71ba0400d66
+          git diff --check 096cd231ea7425790280de89c671a71ba0400d66 HEAD
 
       - name: Check plugin SDK API contract manifest
         if: ${{ false }}
