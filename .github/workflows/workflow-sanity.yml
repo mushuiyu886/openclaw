@@ -29,7 +29,7 @@ jobs:
         name: Checkout
         env:
           CHECKOUT_REPO: ${{ github.repository }}
-          CHECKOUT_SHA: a19317c9d4a50af6eebe9b0f4940ccd14dfa58da
+          CHECKOUT_SHA: db9a5a28767a8b778836f4754a9344991e766c58
         run: |
           set -euo pipefail
           git init "$GITHUB_WORKSPACE"
