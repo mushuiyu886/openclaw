@@ -29,7 +29,7 @@ jobs:
         name: Checkout
         env:
           CHECKOUT_REPO: ${{ github.repository }}
-          CHECKOUT_SHA: 58e810daea1b59fddb9d405a15bbc939592a88de
+          CHECKOUT_SHA: a4b5989deb40cac614fae892a5284aebcaf1d85d
         run: |
           set -euo pipefail
           git init "$GITHUB_WORKSPACE"
@@ -231,20 +231,28 @@ jobs:
       - name: Run focused PR 109038 regression
         run: >-
           node scripts/run-vitest.mjs
+          src/agents/cli-runner/session-history.test.ts
+          src/agents/cli-runner/session-history.sqlite.test.ts
+          src/agents/cli-runner/prepare.test.ts
+          src/agents/cli-runner.context-engine.test.ts
+          src/agents/cli-runner.reliability.test.ts
           src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts
           src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts
           --no-coverage
 
       - name: Check focused formatting and lint
-        if: ${{ false }}
         run: |
           files=(
             src/agents/cli-runner.context-engine.test.ts
+            src/agents/cli-runner.reliability.test.ts
             src/agents/cli-runner.ts
             src/agents/cli-runner/prepare.test.ts
             src/agents/cli-runner/prepare.ts
+            src/agents/cli-runner/session-history-exclusion.ts
             src/agents/cli-runner/session-history.sqlite.test.ts
+            src/agents/cli-runner/session-history.test.ts
             src/agents/cli-runner/session-history.ts
+            src/agents/cli-runner/types.ts
             src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts
             src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.ts
             src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts
@@ -262,14 +270,12 @@ jobs:
         run: pnpm deadcode:dependencies
 
       - name: Check test types
-        if: ${{ false }}
         run: pnpm check:test-types
 
       - name: Check patch whitespace
-        if: ${{ false }}
         run: |
-          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git 096cd231ea7425790280de89c671a71ba0400d66
-          git diff --check 096cd231ea7425790280de89c671a71ba0400d66 HEAD
+          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git f2b3d1588f91d6d580be28056b93aa211d066be6
+          git diff --check f2b3d1588f91d6d580be28056b93aa211d066be6 HEAD
 
       - name: Check plugin SDK API contract manifest
         if: ${{ false }}
