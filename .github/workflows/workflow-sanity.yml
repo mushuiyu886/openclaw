@@ -29,7 +29,7 @@ jobs:
         name: Checkout
         env:
           CHECKOUT_REPO: ${{ github.repository }}
-          CHECKOUT_SHA: a4b5989deb40cac614fae892a5284aebcaf1d85d
+          CHECKOUT_SHA: 217b68ec1bc86fb2352bc4c6c32341fa07525a34
         run: |
           set -euo pipefail
           git init "$GITHUB_WORKSPACE"
@@ -274,8 +274,8 @@ jobs:
 
       - name: Check patch whitespace
         run: |
-          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git f2b3d1588f91d6d580be28056b93aa211d066be6
-          git diff --check f2b3d1588f91d6d580be28056b93aa211d066be6 HEAD
+          git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git 807506381a0362a748e01e28839f15a38a4a911e
+          git diff --check 807506381a0362a748e01e28839f15a38a4a911e HEAD
 
       - name: Check plugin SDK API contract manifest
         if: ${{ false }}
