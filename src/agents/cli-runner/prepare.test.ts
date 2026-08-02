@@ -4021,7 +4021,7 @@ describe("prepareCliRunContext", () => {
       id: "msg-before-maintenance",
       parentId: null,
       timestamp: new Date(1).toISOString(),
-      message: { role: "user", content: "history after maintenance", timestamp: 1 },
+      message: { role: "user", content: "history before maintenance", timestamp: 1 },
     });
     setCliBackendForPrepareTest({ reseedFromRawTranscriptWhenUncompacted: true });
     let releaseMaintenance: (() => void) | undefined;
@@ -4029,28 +4029,46 @@ describe("prepareCliRunContext", () => {
       releaseMaintenance = resolve;
     });
     const waitForDeferredTurnMaintenanceForSession = vi.fn(() => maintenance);
-    setCliRunnerPrepareTestDeps({ waitForDeferredTurnMaintenanceForSession });
+    setCliRunnerPrepareTestDeps({
+      claudeCliSessionTranscriptHasContent: vi.fn(async () => false),
+      claudeCliSessionTranscriptHasOrphanedToolUse: vi.fn(async () => false),
+      waitForDeferredTurnMaintenanceForSession,
+    });
 
     const preparation = fixture.prepare({
       sessionKey: "agent:main:telegram:direct:peer",
       prompt: "latest ask",
+      provider: "claude-cli",
+      model: "opus",
+      cliSessionBinding: { sessionId: "stale-claude-sid" },
+      cliSessionId: "stale-claude-sid",
     });
+    try {
+      await vi.waitFor(() =>
+        expect(waitForDeferredTurnMaintenanceForSession).toHaveBeenCalledWith(
+          "agent:main:telegram:direct:peer",
+        ),
+      );
+      let prepared = false;
+      void preparation.then(() => {
+        prepared = true;
+      });
+      await Promise.resolve();
+      expect(prepared).toBe(false);
+      fixture.appendTranscript({
+        id: "msg-after-maintenance",
+        parentId: "msg-before-maintenance",
+        timestamp: new Date(2).toISOString(),
+        message: { role: "user", content: "history after maintenance", timestamp: 2 },
+      });
 
-    await vi.waitFor(() =>
-      expect(waitForDeferredTurnMaintenanceForSession).toHaveBeenCalledWith(
-        "agent:main:telegram:direct:peer",
-      ),
-    );
-    let prepared = false;
-    void preparation.then(() => {
-      prepared = true;
-    });
-    await Promise.resolve();
-    expect(prepared).toBe(false);
-
-    releaseMaintenance?.();
-    const context = await preparation;
-    expect(context.openClawHistoryPrompt).toContain("history after maintenance");
+      releaseMaintenance?.();
+      const context = await preparation;
+      expect(context.openClawHistoryPrompt).toContain("history after maintenance");
+    } finally {
+      releaseMaintenance?.();
+      await preparation.catch(() => undefined);
+    }
   });
 
   it("prepares node-placed Claude resumes without Gateway MCP, skills, or transcript checks", async () => {
