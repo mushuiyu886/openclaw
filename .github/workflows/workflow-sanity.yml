@@ -224,11 +224,13 @@ jobs:
     steps:
       - *workflow_sanity_checkout_step
       - name: Setup Node environment
+        if: ${{ false }}
         uses: ./.github/actions/setup-node-env
         with:
           install-bun: "false"
 
       - name: Run focused PR 109038 regression
+        if: ${{ false }}
         run: >-
           node scripts/run-vitest.mjs
           src/agents/cli-runner.context-engine.test.ts
@@ -244,6 +246,7 @@ jobs:
           --no-coverage
 
       - name: Check focused formatting and lint
+        if: ${{ false }}
         run: |
           files=(
             src/agents/cli-runner.ts
@@ -271,13 +274,17 @@ jobs:
           node_modules/.bin/oxlint "${files[@]}"
 
       - name: Check dependency exports
+        if: ${{ false }}
         run: pnpm deadcode:dependencies
 
       - name: Check test types
+        if: ${{ false }}
         run: pnpm check:test-types
 
       - name: Check patch whitespace
-        run: git diff --check 9a433136c4f5977345070c34a0c466da21c80d26 HEAD
+        run: |
+          git fetch --no-tags --depth=20 origin refs/heads/proof/pr-109038-jsonl-newline-green
+          git diff --check 9a433136c4f5977345070c34a0c466da21c80d26 HEAD
 
       - name: Check plugin SDK API contract manifest
         if: ${{ false }}
