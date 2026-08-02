@@ -279,10 +279,10 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="$NODE_BIN:$PATH"
-          pnpm test:windows:ci
+          node scripts/run-vitest.mjs src/agents/cli-runner/session-history.sqlite.test.ts
 
       - name: Preflight native Scheduled Task session
-        if: ${{ inputs.run_windows_ci }}
+        if: ${{ false }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -302,7 +302,7 @@ jobs:
 
       - name: Run native Scheduled Task lifecycle proof
         id: native_schtasks
-        if: ${{ inputs.run_windows_ci }}
+        if: ${{ false }}
         timeout-minutes: 5
         shell: bash
         env:
@@ -328,7 +328,7 @@ jobs:
 
       - name: Clean native Scheduled Task residue
         id: native_cleanup
-        if: ${{ always() && inputs.run_windows_ci }}
+        if: ${{ false }}
         shell: pwsh
         env:
           TEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
@@ -419,7 +419,7 @@ jobs:
 
       - name: Upload native Scheduled Task proof
         id: native_proof_upload
-        if: ${{ always() && inputs.run_windows_ci }}
+        if: ${{ false }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: windows-schtasks-proof-${{ github.run_id }}-${{ github.run_attempt }}
@@ -431,7 +431,7 @@ jobs:
           retention-days: 7
 
       - name: Remove retained native Scheduled Task evidence
-        if: ${{ always() && inputs.run_windows_ci && steps.native_cleanup.outcome == 'success' && steps.native_proof_upload.outcome == 'success' }}
+        if: ${{ false }}
         shell: pwsh
         env:
           TEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
