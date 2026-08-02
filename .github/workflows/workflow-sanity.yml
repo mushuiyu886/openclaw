@@ -231,33 +231,17 @@ jobs:
       - name: Run focused PR 109038 regression
         run: >-
           node scripts/run-vitest.mjs
+          src/agents/cli-runner.context-engine.test.ts
+          src/agents/cli-runner/prepare.test.ts
+          src/agents/cli-runner/session-history.test.ts
           src/agents/cli-runner/session-history.sqlite.test.ts
           --no-coverage
 
       - name: Check focused formatting and lint
-        if: ${{ false }}
         run: |
           files=(
-            src/agents/cli-runner.ts
-            src/agents/cli-runner.context-engine.test.ts
-            src/agents/cli-runner/prepare.ts
-            src/agents/cli-runner/prepare.test.ts
             src/agents/cli-runner/session-history.ts
-            src/agents/cli-runner/session-history.test.ts
             src/agents/cli-runner/session-history.sqlite.test.ts
-            src/agents/embedded-agent-runner/cli-backend-dispatch.ts
-            src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts
-            src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.ts
-            src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts
-            src/agents/embedded-agent-runner/context-engine-maintenance.ts
-            src/agents/embedded-agent-runner/context-engine-maintenance.test.ts
-            src/agents/embedded-agent-runner/transcript-rewrite.test.ts
-            src/config/sessions/session-accessor.test.ts
-            src/config/sessions/session-accessor.sqlite-read.ts
-            src/config/sessions/session-accessor.sqlite.ts
-            src/config/sessions/session-accessor.transcript-target.ts
-            src/config/sessions/session-accessor.transcript.ts
-            src/config/sessions/session-accessor.ts
           )
           node_modules/.bin/oxfmt --check "${files[@]}"
           node_modules/.bin/oxlint "${files[@]}"
@@ -267,11 +251,9 @@ jobs:
         run: pnpm deadcode:dependencies
 
       - name: Check test types
-        if: ${{ false }}
         run: pnpm check:test-types
 
       - name: Check patch whitespace
-        if: ${{ false }}
         run: |
           git fetch --no-tags --depth=20 origin refs/heads/proof/pr-109038-jsonl-newline-green
           git diff --check 9a433136c4f5977345070c34a0c466da21c80d26 HEAD
