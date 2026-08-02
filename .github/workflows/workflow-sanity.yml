@@ -29,7 +29,7 @@ jobs:
         name: Checkout
         env:
           CHECKOUT_REPO: ${{ github.repository }}
-          CHECKOUT_SHA: 773fa4fa7bf2999b67ecc30d1561f9e79a7b74c1
+          CHECKOUT_SHA: 4866e2377f7b97784e619675fae814f0983223bd
         run: |
           set -euo pipefail
           git init "$GITHUB_WORKSPACE"
@@ -231,19 +231,29 @@ jobs:
       - name: Run focused PR 109038 regression
         run: >-
           node scripts/run-vitest.mjs
+          src/agents/cli-runner.context-engine.test.ts
           src/agents/cli-runner/prepare.test.ts
           src/agents/cli-runner/session-history.sqlite.test.ts
+          src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts
           --no-coverage
 
       - name: Check focused formatting and lint
-        if: ${{ false }}
         run: |
           files=(
             src/agents/cli-runner.context-engine.test.ts
             src/agents/cli-runner.ts
+            src/agents/cli-runner/prepare.test.ts
             src/agents/cli-runner/prepare.ts
-            src/agents/cli-runner/session-history.ts
             src/agents/cli-runner/session-history.sqlite.test.ts
+            src/agents/cli-runner/session-history.ts
+            src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.test.ts
+            src/agents/embedded-agent-runner/cli-backend-dispatch-transcript.ts
+            src/agents/embedded-agent-runner/cli-backend-dispatch.test.ts
+            src/agents/embedded-agent-runner/cli-backend-dispatch.ts
+            src/config/sessions/session-accessor.sqlite-read.ts
+            src/config/sessions/session-accessor.sqlite.ts
+            src/config/sessions/session-accessor.transcript.ts
+            src/config/sessions/session-accessor.ts
           )
           node_modules/.bin/oxfmt --check "${files[@]}"
           node_modules/.bin/oxlint "${files[@]}"
@@ -253,11 +263,9 @@ jobs:
         run: pnpm deadcode:dependencies
 
       - name: Check test types
-        if: ${{ false }}
         run: pnpm check:test-types
 
       - name: Check patch whitespace
-        if: ${{ false }}
         run: |
           git fetch --no-tags --depth=1 https://github.com/openclaw/openclaw.git 096cd231ea7425790280de89c671a71ba0400d66
           git diff --check 096cd231ea7425790280de89c671a71ba0400d66 HEAD
