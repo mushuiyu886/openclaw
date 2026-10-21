@@ -151,9 +151,14 @@ export async function settleDuplicateSessionSqliteArchives(params: {
           throw new Error("Archive was recreated after disposal.");
         }
         if (artifact.disposal.state !== "disposed") {
-          assertRecoveryOriginal(item.path, artifact);
-          item.outcome = "candidate";
-          selected.push(item);
+          if (statMigrationPath(item.path)) {
+            assertRecoveryOriginal(item.path, artifact);
+            item.outcome = "candidate";
+            selected.push(item);
+          }
+          // A historical original that vanished while its byte-verified survivor
+          // stays retained has nothing left to retire; its references still
+          // settle onto the verified survivor instead of deferring forever.
         }
         replacements.set(item.path, survivor[0]!.move);
       } catch (error) {
@@ -164,7 +169,13 @@ export async function settleDuplicateSessionSqliteArchives(params: {
   await disposeRecoveryArtifacts({ selected, references, assertDestinations: assertSurvivor });
   for (const [archivePath] of replacements) {
     const refs = references.get(archivePath)!;
-    if (refs.every((ref) => ref.move.artifact!.disposal.state === "disposed")) {
+    if (
+      refs.every(
+        (ref) =>
+          ref.move.artifact!.disposal.state === "disposed" ||
+          !statMigrationPath(ref.move.archivePath),
+      )
+    ) {
       assertSurvivor(refs);
     } else {
       replacements.delete(archivePath);

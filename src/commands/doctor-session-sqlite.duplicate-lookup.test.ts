@@ -31,6 +31,19 @@ it("keeps the first matching artifact when copies precede or follow the original
   });
 });
 
+it("settles a missing retained original onto its byte-verified survivor", async () => {
+  await withDuplicateArchives(1, async ({ artifacts, settle }) => {
+    const [survivor, missing] = artifacts;
+    // The historical original vanished while its receipts and a byte-identical
+    // retained survivor remain; settlement must repoint references, not defer.
+    fs.rmSync(missing.path);
+    const result = await settle();
+    expect(result).toMatchObject([{ issues: [{ code: "historical_duplicate_settled" }] }]);
+    expect(result).not.toMatchObject([{ issues: [{ code: "historical_transcript_deferred" }] }]);
+    expect(fs.readFileSync(survivor.path, "utf8")).toBe("retained original bytes\n");
+  });
+});
+
 it.each(["artifacts", "moves"] as const)(
   "settles many duplicates with linear %s visits",
   async (kind) => {
