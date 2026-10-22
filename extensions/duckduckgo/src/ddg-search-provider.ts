@@ -51,8 +51,7 @@ export function createDuckDuckGoWebSearchProvider(): WebSearchProviderPlugin {
         context?.signal?.throwIfAborted();
         const { runDuckDuckGoSearch } = await loadDuckDuckGoClientModule();
         const safeSearch = readStringParam(args, "safeSearch");
-        // tools.web.search values are schema-validated upstream; the plugin
-        // context exposes them as unknown, so narrow to the typed record here.
+        // SAFETY: tools.web.search is config-schema-validated upstream of this cast.
         const searchConfig = ctx.searchConfig as SearchConfigRecord | undefined;
         return await runDuckDuckGoSearch({
           config: ctx.config,
