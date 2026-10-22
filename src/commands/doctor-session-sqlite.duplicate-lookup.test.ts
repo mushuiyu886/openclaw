@@ -33,7 +33,8 @@ it("keeps the first matching artifact when copies precede or follow the original
 
 it("settles a missing retained original onto its byte-verified survivor", async () => {
   await withDuplicateArchives(1, async ({ artifacts, settle }) => {
-    const [survivor, missing] = artifacts;
+    const survivor = artifacts[0]!;
+    const missing = artifacts[1]!;
     // The historical original vanished while its receipts and a byte-identical
     // retained survivor remain; settlement must repoint references, not defer.
     fs.rmSync(missing.path);
