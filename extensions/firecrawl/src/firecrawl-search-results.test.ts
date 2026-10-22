@@ -1,3 +1,4 @@
+import type { MockInstance } from "vitest";
 import { assert, describe, expect, it, vi } from "vitest";
 import { mockFirecrawlResponses } from "./firecrawl-payload.test-support.js";
 import { createFirecrawlFreeWebSearchProvider } from "./firecrawl-search-provider.js";
@@ -88,20 +89,59 @@ describe("Firecrawl search result selection", () => {
   });
 });
 
-it("honors tools.web.search maxResults and timeoutSeconds from the provider context", async () => {
-  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+function createConfiguredSearchTool(searchConfig?: Record<string, unknown>) {
+  const tool = createFirecrawlFreeWebSearchProvider().createTool({
+    config: { tools: { web: { search: { cacheTtlMinutes: 0 } } } },
+    searchConfig,
+  });
+  assert(tool, "Expected Firecrawl search tool");
+  return tool;
+}
+
+function readFirecrawlRequestBody(fetchMock: MockInstance<typeof globalThis.fetch>) {
+  const rawBody = fetchMock.mock.calls[0]?.[1]?.body;
+  expect(typeof rawBody).toBe("string");
+  return JSON.parse(rawBody as string) as Record<string, unknown>;
+}
+
+function mockFirecrawlFetchWithEmptyWeb() {
+  return vi.spyOn(globalThis, "fetch").mockResolvedValue(
     new Response(JSON.stringify({ web: [] }), {
       headers: { "content-type": "application/json" },
     }),
   );
-  const tool = createFirecrawlFreeWebSearchProvider().createTool({
-    config: {},
-    searchConfig: { maxResults: 2, timeoutSeconds: 2 },
-  });
-  assert(tool, "Expected tool definition");
-  await tool.execute({ query: "openclaw docs" }).catch(() => undefined);
-  const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
-    limit?: number;
-  };
-  expect(body.limit).toBe(2);
+}
+
+it("honors tools.web.search maxResults at the request boundary", async () => {
+  const fetchMock = mockFirecrawlFetchWithEmptyWeb();
+  const tool = createConfiguredSearchTool({ maxResults: 2, timeoutSeconds: 2 });
+  await tool.execute({ query: "openclaw docs" });
+  expect(readFirecrawlRequestBody(fetchMock).limit).toBe(2);
+});
+
+it("keeps an explicit count ahead of the configured maxResults", async () => {
+  const fetchMock = mockFirecrawlFetchWithEmptyWeb();
+  const tool = createConfiguredSearchTool({ maxResults: 2, timeoutSeconds: 2 });
+  await tool.execute({ query: "openclaw docs", count: 4 });
+  expect(readFirecrawlRequestBody(fetchMock).limit).toBe(4);
+});
+
+it("keeps the client default count when no search config is set", async () => {
+  const fetchMock = mockFirecrawlFetchWithEmptyWeb();
+  const tool = createConfiguredSearchTool();
+  await tool.execute({ query: "openclaw docs" });
+  expect(readFirecrawlRequestBody(fetchMock).limit).toBe(5);
+});
+
+it("cancels a slow Firecrawl search at the configured deadline", async () => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(
+    (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      }) as Promise<Response>,
+  );
+  const tool = createConfiguredSearchTool({ timeoutSeconds: 1 });
+  await expect(tool.execute({ query: "openclaw docs" })).rejects.toThrow(
+    /timed out|TimeoutError|aborted/i,
+  );
 });

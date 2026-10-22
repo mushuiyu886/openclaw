@@ -1,6 +1,6 @@
 import { createLazyRuntimeModule } from "openclaw/plugin-sdk/lazy-runtime";
 import { readPositiveIntegerParam, readStringParam } from "openclaw/plugin-sdk/param-readers";
-import { resolveSearchTimeoutSeconds } from "openclaw/plugin-sdk/provider-web-search";
+import type { SearchConfigRecord } from "openclaw/plugin-sdk/provider-web-search";
 import {
   createWebSearchProviderContractFields,
   WEB_SEARCH_QUERY_COUNT_PROPERTIES,
@@ -51,6 +51,9 @@ export function createDuckDuckGoWebSearchProvider(): WebSearchProviderPlugin {
         context?.signal?.throwIfAborted();
         const { runDuckDuckGoSearch } = await loadDuckDuckGoClientModule();
         const safeSearch = readStringParam(args, "safeSearch");
+        // tools.web.search values are schema-validated upstream; the plugin
+        // context exposes them as unknown, so narrow to the typed record here.
+        const searchConfig = ctx.searchConfig as SearchConfigRecord | undefined;
         return await runDuckDuckGoSearch({
           config: ctx.config,
           query: readStringParam(args, "query", { required: true }),
@@ -58,8 +61,8 @@ export function createDuckDuckGoWebSearchProvider(): WebSearchProviderPlugin {
             readPositiveIntegerParam(args, "count", {
               max: 10,
               message: "count must be an integer from 1 to 10.",
-            }) ?? ctx.searchConfig?.maxResults,
-          timeoutSeconds: resolveSearchTimeoutSeconds(ctx.searchConfig),
+            }) ?? searchConfig?.maxResults,
+          timeoutSeconds: searchConfig?.timeoutSeconds,
           region: readStringParam(args, "region"),
           safeSearch:
             safeSearch === "strict" || safeSearch === "moderate" || safeSearch === "off"

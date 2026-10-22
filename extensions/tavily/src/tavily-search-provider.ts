@@ -1,6 +1,6 @@
 import { createLazyRuntimeModule } from "openclaw/plugin-sdk/lazy-runtime";
 import { readPositiveIntegerParam } from "openclaw/plugin-sdk/param-readers";
-import { resolveSearchTimeoutSeconds } from "openclaw/plugin-sdk/provider-web-search";
+import type { SearchConfigRecord } from "openclaw/plugin-sdk/provider-web-search";
 import {
   createWebSearchProviderContractFields,
   type WebSearchProviderPlugin,
@@ -50,6 +50,9 @@ export function createTavilyWebSearchProvider(): WebSearchProviderPlugin {
       execute: async (args, executionContext) => {
         executionContext?.signal?.throwIfAborted();
         const { runTavilySearch } = await loadTavilyClientModule();
+        // tools.web.search values are schema-validated upstream; the plugin
+        // context exposes them as unknown, so narrow to the typed record here.
+        const searchConfig = ctx.searchConfig as SearchConfigRecord | undefined;
         return await runTavilySearch({
           cfg: ctx.config,
           query: typeof args.query === "string" ? args.query : "",
@@ -57,8 +60,8 @@ export function createTavilyWebSearchProvider(): WebSearchProviderPlugin {
             readPositiveIntegerParam(args, "count", {
               message: "count must be an integer from 1 to 20",
               max: 20,
-            }) ?? ctx.searchConfig?.maxResults,
-          timeoutSeconds: resolveSearchTimeoutSeconds(ctx.searchConfig),
+            }) ?? searchConfig?.maxResults,
+          timeoutSeconds: searchConfig?.timeoutSeconds,
           ...(executionContext?.signal ? { signal: executionContext.signal } : {}),
         });
       },

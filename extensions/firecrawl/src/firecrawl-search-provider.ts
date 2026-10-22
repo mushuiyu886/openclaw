@@ -2,7 +2,7 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
 import { createLazyRuntimeModule } from "openclaw/plugin-sdk/lazy-runtime";
 import { readPositiveIntegerParam } from "openclaw/plugin-sdk/param-readers";
 import { resolvePluginConfigObject } from "openclaw/plugin-sdk/plugin-config-runtime";
-import { resolveSearchTimeoutSeconds } from "openclaw/plugin-sdk/provider-web-search";
+import type { SearchConfigRecord } from "openclaw/plugin-sdk/provider-web-search";
 import {
   createWebSearchProviderContractFields,
   enablePluginInConfig,
@@ -98,6 +98,9 @@ function createFirecrawlSearchProvider(keyless: boolean): WebSearchProviderPlugi
       execute: async (args, executionContext) => {
         executionContext?.signal?.throwIfAborted();
         const { runFirecrawlSearch } = await loadFirecrawlClientModule();
+        // tools.web.search values are schema-validated upstream; the plugin
+        // context exposes them as unknown, so narrow to the typed record here.
+        const searchConfig = ctx.searchConfig as SearchConfigRecord | undefined;
         return await runFirecrawlSearch({
           cfg: ctx.config,
           query: typeof args.query === "string" ? args.query : "",
@@ -105,8 +108,8 @@ function createFirecrawlSearchProvider(keyless: boolean): WebSearchProviderPlugi
             readPositiveIntegerParam(args, "count", {
               message: "count must be an integer from 1 to 10",
               max: 10,
-            }) ?? ctx.searchConfig?.maxResults,
-          timeoutSeconds: resolveSearchTimeoutSeconds(ctx.searchConfig),
+            }) ?? searchConfig?.maxResults,
+          timeoutSeconds: searchConfig?.timeoutSeconds,
           ...(keyless ? { access: "keyless" as const } : {}),
           ...(executionContext?.signal ? { signal: executionContext.signal } : {}),
         });
