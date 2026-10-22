@@ -144,7 +144,14 @@ it("cancels a slow Firecrawl search at the configured deadline", async () => {
       }) as Promise<Response>,
   );
   const tool = createConfiguredSearchTool({ timeoutSeconds: 1 });
-  await expect(tool.execute({ query: "openclaw docs" })).rejects.toThrow(
-    /timed out|TimeoutError|aborted/i,
-  );
+  vi.useFakeTimers();
+  try {
+    const pending = expect(tool.execute({ query: "openclaw docs" })).rejects.toThrow(
+      /timed out|TimeoutError|aborted/i,
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+    await pending;
+  } finally {
+    vi.useRealTimers();
+  }
 });

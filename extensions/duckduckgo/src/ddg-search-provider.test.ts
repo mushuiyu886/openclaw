@@ -267,9 +267,16 @@ it("cancels a slow DuckDuckGo search at the configured deadline", async () => {
     searchConfig: { timeoutSeconds: 1 },
   });
   assert(tool, "Expected tool definition");
-  await expect(tool.execute({ query: "openclaw docs" })).rejects.toThrow(
-    /timed out|TimeoutError|aborted/i,
-  );
+  vi.useFakeTimers();
+  try {
+    const pending = expect(tool.execute({ query: "openclaw docs" })).rejects.toThrow(
+      /timed out|TimeoutError|aborted/i,
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+    await pending;
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("keeps the client fallback deadline when timeoutSeconds is not configured", async () => {

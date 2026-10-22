@@ -72,8 +72,15 @@ it("cancels a slow Tavily search at the configured deadline", async () => {
       }) as Promise<Response>,
   );
   const tool = createConfiguredSearchTool({ timeoutSeconds: 1 });
-  await expect(tool.execute({ query: "deadline enforcement" })).rejects.toThrow(
-    /timed out|TimeoutError|aborted/i,
-  );
+  vi.useFakeTimers();
+  try {
+    const pending = expect(tool.execute({ query: "deadline enforcement" })).rejects.toThrow(
+      /timed out|TimeoutError|aborted/i,
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+    await pending;
+  } finally {
+    vi.useRealTimers();
+  }
 });
 /* End By Cursor Rule, csjg8ah9884ye1ru37qo6iroqwl8waao */
