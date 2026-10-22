@@ -133,8 +133,12 @@ export async function settleDuplicateSessionSqliteArchives(params: {
     ) {
       continue;
     }
-    const survivor = group.find((refs) =>
-      refs.every((ref) => ref.move.artifact!.disposal.state === "retained"),
+    // The survivor must itself be present: a vanished original ordered first in
+    // the group is not a settlement destination, and verifying its bytes fails.
+    const survivor = group.find(
+      (refs) =>
+        refs.every((ref) => ref.move.artifact!.disposal.state === "retained") &&
+        statMigrationPath(refs[0]!.move.archivePath),
     );
     if (!survivor) {
       continue;

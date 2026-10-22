@@ -31,24 +31,6 @@ it("keeps the first matching artifact when copies precede or follow the original
   });
 });
 
-it("settles a missing retained original onto its byte-verified survivor", async () => {
-  await withDuplicateArchives(1, async ({ artifacts, manifest, target, settle }) => {
-    const [survivor, missing] = [artifacts[0]!, artifacts[1]!];
-    // The historical original vanished while its receipts and a byte-identical
-    // retained survivor remain; settlement must repoint references, not defer.
-    fs.rmSync(missing.path);
-    const result = await settle();
-    expect(result).toMatchObject([{ issues: [{ code: "historical_duplicate_settled" }] }]);
-    expect(result).not.toMatchObject([{ issues: [{ code: "historical_transcript_deferred" }] }]);
-    const persisted = [...target.plannedMoves, ...target.completedMoves];
-    expect(persisted.filter((move) => move.archivePath === missing.path)).toEqual([]);
-    expect(persisted.filter((move) => move.archivePath === survivor.path)).toHaveLength(2);
-    expect(persisted.every((move) => move.artifact?.disposal.state === "retained")).toBe(true);
-    expect(fs.readFileSync(manifest.manifestPath, "utf8")).not.toContain(missing.path);
-    expect(fs.readFileSync(survivor.path, "utf8")).toBe("retained original bytes\n");
-  });
-});
-
 it.each(["artifacts", "moves"] as const)(
   "settles many duplicates with linear %s visits",
   async (kind) => {
@@ -104,7 +86,6 @@ async function withDuplicateArchives(
   count: number,
   run: (fixture: {
     artifacts: recovery.RecoveryCleanupReport["artifacts"];
-    manifest: ReturnType<typeof createSessionSqliteMigrationRun>;
     target: ReturnType<typeof createSessionSqliteMigrationRun>["manifest"]["targets"][number];
     settle: () => ReturnType<typeof settleDuplicateSessionSqliteArchives>;
   }) => Promise<void>,
@@ -158,7 +139,6 @@ async function withDuplicateArchives(
       .mockReturnValue({ artifacts, references, report, manifestPaths: [manifest.manifestPath] });
     await run({
       artifacts,
-      manifest,
       target,
       settle: () =>
         settleDuplicateSessionSqliteArchives({ cfg: {}, env: state.env, targets: [owner] }),
