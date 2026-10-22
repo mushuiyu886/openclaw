@@ -240,3 +240,34 @@ describe("xai realtime transcription provider", () => {
     expect(server.requests[0]?.headers.authorization).toBe("Bearer oauth-bearer");
   });
 });
+
+describe("xai chunk-final retention", () => {
+  it("keeps locked chunk-final text in partial previews", async () => {
+    const full = "Vier. und nach der Pause erzaehle ich etwas.";
+    const tail = "Fuenf.";
+    const server = await createRealtimeSttServer({
+      transcriptionEvents: [
+        { type: "transcript.partial", text: full, is_final: false, speech_final: false },
+        { type: "transcript.partial", text: full, is_final: true, speech_final: false },
+        { type: "transcript.partial", text: tail, is_final: false, speech_final: false },
+        { type: "transcript.partial", text: `${full} ${tail}`, is_final: true, speech_final: true },
+      ],
+    });
+    const onPartial = vi.fn();
+    const finalDone = createDeferred<void>();
+    const session = createSession(server.baseUrl, {
+      onPartial,
+      onTranscript: (text: string) => {
+        if (text === `${full} ${tail}`) {
+          finalDone.resolve();
+        }
+      },
+    });
+    await session.connect();
+    session.sendAudio(Buffer.from("audio"));
+    await finalDone.promise;
+    session.close();
+    await server.donePromise;
+    expect(onPartial.mock.calls.map(([text]) => text)).toEqual([full, full, `${full} ${tail}`]);
+  });
+});
