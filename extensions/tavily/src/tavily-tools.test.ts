@@ -1,5 +1,6 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTavilyWebSearchProvider } from "../web-search-contract-api.js";
 import {
   resolveTavilyApiKey,
   resolveTavilyBaseUrl,
@@ -59,7 +60,7 @@ describe("tavily tools", () => {
   it("normalizes generic Tavily search count before dispatch", async () => {
     const tool = providerTool();
     const result = await tool.execute({ query: "weather sf", count: "7" });
-    expect(result).toEqual({ cfg: {}, query: "weather sf", maxResults: 7 });
+    expect(result).toEqual({ cfg: {}, query: "weather sf", maxResults: 7, timeoutSeconds: 30 });
     await expect(tool.execute({ query: "weather sf", count: "7.5" })).rejects.toThrow(
       "count must be an integer from 1 to 20",
     );
@@ -138,4 +139,17 @@ describe("tavily tools", () => {
     expect(resolveTavilySearchTimeoutSeconds()).toBe(30);
     expect(resolveTavilyExtractTimeoutSeconds()).toBe(60);
   });
+});
+
+it("honors tools.web.search maxResults and timeoutSeconds when count is omitted", async () => {
+  const tool = createTavilyWebSearchProvider().createTool({
+    config: {},
+    searchConfig: { maxResults: 2, timeoutSeconds: 2 },
+  });
+  expect(tool).toBeDefined();
+  runTavilySearch.mockClear();
+  await tool?.execute({ query: "openclaw docs" });
+  expect(runTavilySearch).toHaveBeenCalledWith(
+    expect.objectContaining({ maxResults: 2, timeoutSeconds: 2 }),
+  );
 });

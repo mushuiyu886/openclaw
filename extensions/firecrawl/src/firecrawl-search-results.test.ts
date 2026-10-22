@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it, vi } from "vitest";
 import { mockFirecrawlResponses } from "./firecrawl-payload.test-support.js";
 import { createFirecrawlFreeWebSearchProvider } from "./firecrawl-search-provider.js";
 
@@ -86,4 +86,22 @@ describe("Firecrawl search result selection", () => {
     });
     expect(JSON.stringify(result)).not.toContain("2026-08-03");
   });
+});
+
+it("honors tools.web.search maxResults and timeoutSeconds from the provider context", async () => {
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(JSON.stringify({ web: [] }), {
+      headers: { "content-type": "application/json" },
+    }),
+  );
+  const tool = createFirecrawlFreeWebSearchProvider().createTool({
+    config: {},
+    searchConfig: { maxResults: 2, timeoutSeconds: 2 },
+  });
+  assert(tool, "Expected tool definition");
+  await tool.execute({ query: "openclaw docs" }).catch(() => undefined);
+  const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+    limit?: number;
+  };
+  expect(body.limit).toBe(2);
 });

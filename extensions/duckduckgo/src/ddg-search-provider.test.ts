@@ -209,3 +209,22 @@ it("uses an honest User-Agent and returns the first two valid results with their
   expect(result).toMatchObject({ count: expected.length, results: expected });
   expect(JSON.stringify(result)).not.toContain("Discarded");
 });
+
+it("honors tools.web.search maxResults when count is omitted", async () => {
+  fetch.mockResolvedValue(
+    htmlResponse(
+      [1, 2, 3]
+        .map((index) => resultHtml(`https://example.com/${index}`, `Result ${index}`))
+        .join(""),
+    ),
+  );
+  const tool = createDuckDuckGoWebSearchProvider().createTool({
+    config: {},
+    searchConfig: { maxResults: 2, timeoutSeconds: 2 },
+  });
+  assert(tool, "Expected tool definition");
+  const result = (await tool.execute({ query: "openclaw docs" })) as {
+    results?: unknown[];
+  };
+  expect(result.results).toHaveLength(2);
+});
