@@ -65,8 +65,7 @@ export function coalesceSessionSqliteArchiveReferences(
           if (
             survivor &&
             move.artifact &&
-            (move.artifact.disposal.state === "disposed" ||
-              missingOriginals?.has(move.archivePath))
+            (move.artifact.disposal.state === "disposed" || missingOriginals?.has(move.archivePath))
           ) {
             move.archivePath = survivor.archivePath;
             move.artifact = {
