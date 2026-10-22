@@ -255,6 +255,42 @@ it.each(["disposal", "manifest-publication"] as const)(
   },
 );
 
+it("settles a vanished retained original onto its byte-verified survivor", async () => {
+  await withOpenClawTestState({ label: "doctor-duplicate-missing-original" }, async (state) => {
+    const { archives, bytes, doctor, inventory } = createRetainedDuplicateArchives(state);
+    // Settlement keeps the first recorded duplicate group as the survivor, and the
+    // inventory iterates the same reference order, so mirror that choice here.
+    const before = inventory();
+    const survivorPath = [...before.references.keys()].find((file) => archives.includes(file))!;
+    const missingPath = archives.find((file) => file !== survivorPath)!;
+    // External partial cleanup removed one duplicate file while its retained
+    // receipts and a byte-identical surviving archive stay recorded.
+    fs.rmSync(missingPath);
+    const recovered = await doctor("recover");
+    expect(recovered.targets.flatMap((item) => item.issues.map(({ code }) => code))).toEqual([
+      "historical_duplicate_settled",
+    ]);
+    const after = inventory();
+    expect(after.references.has(missingPath)).toBe(false);
+    expect(after.references.get(survivorPath)?.length).toBeGreaterThan(1);
+    expect(after.report.artifacts.map(({ reason }) => reason)).not.toContain(
+      "unexpectedly-missing-artifact",
+    );
+    const persistedManifests = before.manifestPaths
+      .map((file) => migrationRun.readSessionSqliteMigrationManifest(file))
+      .filter((manifest) => manifest !== undefined);
+    expect(persistedManifests.length).toBeGreaterThan(0);
+    for (const manifest of persistedManifests) {
+      for (const target of manifest.targets) {
+        const receipts = [...target.plannedMoves, ...target.completedMoves];
+        expect(receipts.filter((move) => move.archivePath === missingPath)).toEqual([]);
+      }
+    }
+    expect(fs.readFileSync(survivorPath, "utf8")).toBe(bytes);
+    expect((await doctor("dry-run")).totals.issues).toBe(0);
+  });
+});
+
 it("protects a large historical index and all siblings within the inventory budget", () => {
   const { refs, artifacts } = recoveryGraph(10_000);
   const start = performance.now();

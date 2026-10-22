@@ -113,6 +113,7 @@ export async function settleDuplicateSessionSqliteArchives(params: {
     }
   }
   const replacements = new Map<string, RecoveryArtifactReference["move"]>();
+  const missingRetainedOriginals = new Set<string>();
   const assertSurvivor = (refs: RecoveryArtifactReference[]) => {
     const move = survivors.get(refs[0]!.move.archivePath)![0]!.move;
     if (hasSymbolicLinkInDirectoryPath(path.dirname(move.archivePath))) {
@@ -151,18 +152,18 @@ export async function settleDuplicateSessionSqliteArchives(params: {
           throw new Error("Archive was recreated after disposal.");
         }
         if (artifact.disposal.state !== "disposed") {
-          const recoverable =
-            statMigrationPath(item.path) ||
-            (artifact.disposal.state === "pending-disposal" &&
-              statMigrationPath(artifact.disposal.claimPath));
-          if (recoverable) {
+          if (artifact.disposal.state === "retained" && !statMigrationPath(item.path)) {
+            // A historical original that vanished while its byte-verified survivor
+            // stays retained has nothing left to retire; its references still
+            // settle onto the verified survivor instead of deferring forever.
+            // Interrupted disposal claims stay selected below: their claim file
+            // must still be retired and their receipts completed.
+            missingRetainedOriginals.add(item.path);
+          } else {
             assertRecoveryOriginal(item.path, artifact);
             item.outcome = "candidate";
             selected.push(item);
           }
-          // A historical original that vanished while its byte-verified survivor
-          // stays retained has nothing left to retire; its references still
-          // settle onto the verified survivor instead of deferring forever.
         }
         replacements.set(item.path, survivor[0]!.move);
       } catch (error) {
@@ -173,17 +174,16 @@ export async function settleDuplicateSessionSqliteArchives(params: {
   await disposeRecoveryArtifacts({ selected, references, assertDestinations: assertSurvivor });
   for (const [archivePath] of replacements) {
     const refs = references.get(archivePath)!;
-    if (
-      refs.every(
-        (ref) =>
-          ref.move.artifact!.disposal.state === "disposed" ||
-          // Only a retained original that vanished outside disposal settles
-          // without a disposal receipt; an interrupted pending-disposal
-          // retirement still reports its failure for recovery.
-          (ref.move.artifact!.disposal.state === "retained" &&
-            !statMigrationPath(ref.move.archivePath)),
-      )
-    ) {
+    // A replacement publishes only after every receipt reached a terminal state:
+    // completed disposal, or the vanished retained original recorded above whose
+    // receipts stay retained because nothing was ever moved to a claim.
+    const settledOntoSurvivor = refs.every(
+      (ref) => ref.move.artifact!.disposal.state === "disposed",
+    );
+    const redirectedMissingOriginal =
+      missingRetainedOriginals.has(archivePath) &&
+      refs.every((ref) => ref.move.artifact!.disposal.state === "retained");
+    if (settledOntoSurvivor || redirectedMissingOriginal) {
       assertSurvivor(refs);
     } else {
       replacements.delete(archivePath);
@@ -193,9 +193,11 @@ export async function settleDuplicateSessionSqliteArchives(params: {
   }
   return [
     ...failures,
-    ...coalesceSessionSqliteArchiveReferences(replacements, [
-      ...new Set([...references.values()].flatMap((refs) => refs.map((ref) => ref.run))),
-    ]),
+    ...coalesceSessionSqliteArchiveReferences(
+      replacements,
+      [...new Set([...references.values()].flatMap((refs) => refs.map((ref) => ref.run)))],
+      missingRetainedOriginals,
+    ),
   ];
 }
 
