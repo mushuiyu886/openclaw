@@ -151,7 +151,11 @@ export async function settleDuplicateSessionSqliteArchives(params: {
           throw new Error("Archive was recreated after disposal.");
         }
         if (artifact.disposal.state !== "disposed") {
-          if (statMigrationPath(item.path)) {
+          const recoverable =
+            statMigrationPath(item.path) ||
+            (artifact.disposal.state === "pending-disposal" &&
+              statMigrationPath(artifact.disposal.claimPath));
+          if (recoverable) {
             assertRecoveryOriginal(item.path, artifact);
             item.outcome = "candidate";
             selected.push(item);
@@ -173,7 +177,11 @@ export async function settleDuplicateSessionSqliteArchives(params: {
       refs.every(
         (ref) =>
           ref.move.artifact!.disposal.state === "disposed" ||
-          !statMigrationPath(ref.move.archivePath),
+          // Only a retained original that vanished outside disposal settles
+          // without a disposal receipt; an interrupted pending-disposal
+          // retirement still reports its failure for recovery.
+          (ref.move.artifact!.disposal.state === "retained" &&
+            !statMigrationPath(ref.move.archivePath)),
       )
     ) {
       assertSurvivor(refs);
