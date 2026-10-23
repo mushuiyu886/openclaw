@@ -13,6 +13,12 @@ describe("mergeDeferredFinalText", () => {
   });
 });
 
+it("keeps equivalent text once when only paragraph separators differ", () => {
+  const streamed = "First paragraph.\nSecond paragraph.\nFIN";
+  const final = "First paragraph.\n\nSecond paragraph.\n\nFIN";
+  expect(mergeDeferredFinalText(streamed, final)).toBe(final);
+});
+
 describe("cleanDeferredFinalText", () => {
   it("keeps TTS-only text out of the visible final", () => {
     expect(cleanDeferredFinalText("Visible. [[tts:text]]Private speech.[[/tts:text]] Done.")).toBe(

@@ -60,6 +60,12 @@ export function mergeDeferredFinalText(streamedText: string, finalText?: string)
   if (final.startsWith(streamed)) {
     return final;
   }
+  // Block-accumulated text joins paragraphs with a single newline while the
+  // final payload keeps its original separators; equivalent text must not
+  // concatenate onto itself (#181070).
+  if (streamed.replace(/\s+/g, " ") === final.replace(/\s+/g, " ")) {
+    return final;
+  }
   return `${streamed}\n${final}`;
 }
 
