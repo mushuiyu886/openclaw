@@ -273,9 +273,9 @@ it.each(["survivor-ordered-first", "vanished-original-ordered-first"] as const)(
         // receipts and a byte-identical surviving archive stay recorded.
         fs.rmSync(missingPath);
         const recovered = await doctor("recover");
-        expect(
-          recovered.targets.flatMap((item) => item.issues.map(({ code }) => code)),
-        ).toEqual(["historical_duplicate_settled"]);
+        expect(recovered.targets.flatMap((item) => item.issues.map(({ code }) => code))).toEqual([
+          "historical_duplicate_settled",
+        ]);
         const after = inventory();
         expect(after.references.has(missingPath)).toBe(false);
         expect(after.references.get(survivorPath)?.length).toBeGreaterThan(1);
