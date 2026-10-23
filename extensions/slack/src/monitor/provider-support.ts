@@ -181,7 +181,7 @@ export function publishSlackConnectedStatus(
 export function trackSlackAuthFailure(
   failure: unknown,
   phase: string,
-  setStatus: (next: Record<string, unknown>) => void,
+  setStatus: ((next: Record<string, unknown>) => void) | undefined,
   logError: (message: string) => void,
   state: { consecutiveInvalidAuth: number },
 ): void {
