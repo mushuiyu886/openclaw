@@ -135,7 +135,7 @@ export function nextSlackAuthFailureState(
 ): { decision: "terminal" | "retry-isolated" | undefined; consecutiveInvalidAuth: number } {
   if (error && isIsolatedInvalidAuthSlackError(error)) {
     const next = consecutiveInvalidAuth + 1;
-    return consecutiveInvalidAuth >= SLACK_ISOLATED_INVALID_AUTH_TERMINAL_LIMIT
+    return next >= SLACK_ISOLATED_INVALID_AUTH_TERMINAL_LIMIT
       ? { decision: "terminal", consecutiveInvalidAuth: next }
       : { decision: "retry-isolated", consecutiveInvalidAuth: next };
   }
