@@ -235,32 +235,73 @@ describe("xai realtime transcription provider", () => {
 });
 
 describe("xai chunk-final retention", () => {
-  it("keeps locked chunk-final text in partial previews", async () => {
-    const full = "Vier. und nach der Pause erzaehle ich etwas.";
-    const tail = "Fuenf.";
+  it("keeps successive chunks and emits stitched finals without duplication", async () => {
     const server = await createRealtimeSttServer({
       transcriptionEvents: [
-        { type: "transcript.partial", text: full, is_final: false, speech_final: false },
-        { type: "transcript.partial", text: full, is_final: true, speech_final: false },
-        { type: "transcript.partial", text: tail, is_final: false, speech_final: false },
-        { type: "transcript.partial", text: `${full} ${tail}`, is_final: true, speech_final: true },
+        transcript("First."),
+        { ...transcript("First.", true), speech_final: false },
+        transcript("Second."),
+        { ...transcript("Second.", true), speech_final: false },
+        transcript("Third."),
+        transcript("First. Second. Third.", true),
+        transcript("Next turn."),
+        transcript("Next turn.", true),
       ],
     });
     const onPartial = vi.fn();
     const finalDone = createDeferred<void>();
-    const session = createSession(server.baseUrl, {
-      onPartial,
-      onTranscript: (text: string) => {
-        if (text === `${full} ${tail}`) {
-          finalDone.resolve();
-        }
-      },
+    const onTranscript = vi.fn((text: string) => {
+      if (text === "Next turn.") {
+        finalDone.resolve();
+      }
     });
+    const session = createSession(server.baseUrl, { onPartial, onTranscript });
     await session.connect();
     session.sendAudio(Buffer.from("audio"));
     await finalDone.promise;
+    expect(onPartial.mock.calls).toEqual([
+      ["First."],
+      ["First."],
+      ["First. Second."],
+      ["First. Second."],
+      ["First. Second. Third."],
+      ["Next turn."],
+    ]);
+    expect(onTranscript.mock.calls).toEqual([["First. Second. Third."], ["Next turn."]]);
     session.close();
     await server.donePromise;
-    expect(onPartial.mock.calls.map(([text]) => text)).toEqual([full, full, `${full} ${tail}`]);
+  });
+
+  it("settles locked chunks before replacement-stream partials arrive", async () => {
+    const events = [
+      { ...transcript("Locked.", true), speech_final: false },
+      transcript("unfinished"),
+    ];
+    const server = await createRealtimeSttServer({ transcriptionEvents: events });
+    const partialDone = createDeferred<void>();
+    const finalDone = createDeferred<void>();
+    const onPartial = vi.fn((text: string) => {
+      if (text.endsWith("unfinished")) {
+        partialDone.resolve();
+      }
+    });
+    const onTranscript = vi.fn((text: string) => {
+      if (text === "New stream.") {
+        finalDone.resolve();
+      }
+    });
+    const session = createSession(server.baseUrl, { onPartial, onTranscript });
+    await session.connect();
+    session.sendAudio(Buffer.from("first stream"));
+    await partialDone.promise;
+    events.splice(0, events.length, transcript("New stream."), transcript("New stream.", true));
+    await session.connect();
+    expect(onTranscript.mock.calls).toEqual([["Locked."]]);
+    session.sendAudio(Buffer.from("replacement stream"));
+    await finalDone.promise;
+    expect(onPartial).toHaveBeenLastCalledWith("New stream.");
+    expect(onTranscript.mock.calls).toEqual([["Locked."], ["New stream."]]);
+    session.close();
+    await server.donePromise;
   });
 });

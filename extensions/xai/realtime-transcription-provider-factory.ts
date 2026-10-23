@@ -47,12 +47,10 @@ export function buildXaiRealtimeTranscriptionProvider(
       const callbacks = { ...req };
       let lastTranscript: string | undefined;
       let speechStarted = false;
-      // xAI chunk finals lock the utterance so far; later interims within the
-      // same utterance carry only the tail after the locked chunk.
       let lockedTranscript = "";
-      const joinTranscript = (left: string, right: string) =>
-        (left && right ? `${left} ${right}` : left || right).replace(/\s+/g, " ").trim();
       const emitTranscript = (text: string) => {
+        lockedTranscript = "";
+        speechStarted = false;
         if (text === lastTranscript) {
           return;
         }
@@ -102,6 +100,14 @@ export function buildXaiRealtimeTranscriptionProvider(
         connectClosedBeforeReadyMessage:
           "xAI realtime transcription connection closed before ready",
         reconnectLimitMessage: "xAI realtime transcription reconnect limit reached",
+        onOpen: () => {
+          // A replacement stream cannot finalize the previous stream's locked chunks.
+          if (lockedTranscript) {
+            emitTranscript(lockedTranscript);
+          }
+          speechStarted = false;
+          lastTranscript = undefined;
+        },
         sendAudio: (audio, transport) => {
           transport.sendBinary(audio);
         },
@@ -130,19 +136,15 @@ export function buildXaiRealtimeTranscriptionProvider(
                 callbacks.onSpeechStart?.();
               }
               if (event.is_final && event.speech_final) {
+                // xAI already stitches every chunk into the utterance final.
                 emitTranscript(text);
-                speechStarted = false;
-                lockedTranscript = "";
                 return;
               }
+              const partial = lockedTranscript ? `${lockedTranscript} ${text}` : text;
               if (event.is_final) {
-                lockedTranscript = text;
-                callbacks.onPartial?.(text);
-                return;
+                lockedTranscript = partial;
               }
-              callbacks.onPartial?.(
-                lockedTranscript ? joinTranscript(lockedTranscript, text) : text,
-              );
+              callbacks.onPartial?.(partial);
               return;
             }
             case "transcript.done": {
