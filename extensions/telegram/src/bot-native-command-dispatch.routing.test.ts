@@ -23,6 +23,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   apiCalls,
   apiResponses,
+  chat,
   commandMessage,
   createBot,
   from,
@@ -570,6 +571,49 @@ describe("native command auth in groups", () => {
       authGroupChat.id,
       "You are not authorized to use this command.",
       { message_thread_id: 42 },
+    );
+  });
+});
+
+describe("native command admission in DMs", () => {
+  it("drops /think silently when dmPolicy does not admit the sender", async () => {
+    const bot = await createBot(true, true, {
+      channels: {
+        telegram: {
+          dmPolicy: "allowlist",
+          allowFrom: ["99999"],
+          streaming: { mode: "off" },
+        },
+      },
+    });
+    const sendMessage = vi.spyOn(bot.api, "sendMessage");
+
+    await bot.handleUpdate({ update_id: 2001, message: commandMessage("/think") });
+
+    expect(harness.replySpy).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("still answers an admitted /think sender who lacks command permission", async () => {
+    const bot = await createBot(true, true, {
+      commands: { allowFrom: { telegram: ["99999"] } },
+      channels: {
+        telegram: {
+          dmPolicy: "allowlist",
+          allowFrom: [String(from.id)],
+          streaming: { mode: "off" },
+        },
+      },
+    });
+    const sendMessage = vi.spyOn(bot.api, "sendMessage");
+
+    await bot.handleUpdate({ update_id: 2002, message: commandMessage("/think") });
+
+    expect(harness.replySpy).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith(
+      chat.id,
+      "You are not authorized to use this command.",
+      expect.anything(),
     );
   });
 });

@@ -309,6 +309,23 @@ async function resolveTelegramCommandAuth(params: {
     ownerContext,
   });
   if (requireAuth && !commandAuthorized) {
+    // A DM sender the effective dmPolicy does not admit is dropped silently for
+    // ordinary messages; answering their commands would tell a stranger that a
+    // bot is listening (#181955). Admitted senders that only lack command
+    // permission keep the deliberate refusal (#131408).
+    if (
+      !isGroup &&
+      !senderIsOwner &&
+      !preContextCommandAccess.authorizedByConfig &&
+      effectiveDmPolicy === "allowlist" &&
+      !dmAllow.hasWildcard &&
+      !dmAllow.entries.includes(senderId)
+    ) {
+      logVerbose(
+        `Dropped telegram native command in DM ${chatId} (sender not admitted by dmPolicy)`,
+      );
+      return null;
+    }
     return await rejectNotAuthorized();
   }
   return {
