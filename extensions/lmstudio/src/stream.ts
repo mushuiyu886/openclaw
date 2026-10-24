@@ -88,9 +88,10 @@ export function wrapLmstudioInferencePreload(ctx: ProviderWrapStreamFnContext): 
   const resolveBinaryReasoningEffortMap = (
     model: Parameters<StreamFn>[0],
   ): Record<string, string> | undefined => {
-    const map = asRecord(asRecord(model as { compat?: unknown })?.compat)?.reasoningEffortMap as
-      | Record<string, string>
-      | undefined;
+    // SAFETY: model.compat carries the catalog's declared compat record; the
+    // optional chain makes non-record shapes undefined, which the helper rejects.
+    const compat = asRecord(model as { compat?: unknown })?.compat;
+    const map = asRecord(compat)?.reasoningEffortMap as Record<string, string> | undefined;
     return isLmstudioBinaryReasoningEffortMap(map) ? map : undefined;
   };
   const streamWithBinaryReasoning = (
