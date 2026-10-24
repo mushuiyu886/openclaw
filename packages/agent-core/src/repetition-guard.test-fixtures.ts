@@ -198,7 +198,10 @@ export function irregularLineMixture(lineCount: number): string {
     state ^= state << 13;
     state ^= state >>> 17;
     state ^= state << 5;
-    out.push(lines[Math.abs(state) % lines.length]!);
+    const line = lines[Math.abs(state) % lines.length];
+    if (line) {
+      out.push(line);
+    }
   }
   return out.join("\n");
 }
