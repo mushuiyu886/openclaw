@@ -23,7 +23,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   apiCalls,
   apiResponses,
-  chat,
+  chat as dmChat,
   commandMessage,
   createBot,
   from,
@@ -576,23 +576,30 @@ describe("native command auth in groups", () => {
 });
 
 describe("native command admission in DMs", () => {
-  it("drops /think silently when dmPolicy does not admit the sender", async () => {
-    const bot = await createBot(true, true, {
-      channels: {
-        telegram: {
-          dmPolicy: "allowlist",
-          allowFrom: ["99999"],
-          streaming: { mode: "off" },
+  it.each<[string, TelegramAccountConfig]>([
+    ["account", {}],
+    ["scoped direct-chat", { direct: { "*": { allowFrom: ["99999"] } } }],
+  ])(
+    "drops /think silently when the %s allowlist does not admit the sender",
+    async (_name, scope) => {
+      const bot = await createBot(true, true, {
+        channels: {
+          telegram: {
+            dmPolicy: "allowlist",
+            allowFrom: ["99999"],
+            streaming: { mode: "off" },
+            ...scope,
+          },
         },
-      },
-    });
-    const sendMessage = vi.spyOn(bot.api, "sendMessage");
+      });
+      const sendMessage = vi.spyOn(bot.api, "sendMessage");
 
-    await bot.handleUpdate({ update_id: 2001, message: commandMessage("/think") });
+      await bot.handleUpdate({ update_id: 2001, message: commandMessage("/think") });
 
-    expect(harness.replySpy).not.toHaveBeenCalled();
-    expect(sendMessage).not.toHaveBeenCalled();
-  });
+      expect(harness.replySpy).not.toHaveBeenCalled();
+      expect(sendMessage).not.toHaveBeenCalled();
+    },
+  );
 
   it("still answers an admitted /think sender who lacks command permission", async () => {
     const bot = await createBot(true, true, {
@@ -611,7 +618,37 @@ describe("native command admission in DMs", () => {
 
     expect(harness.replySpy).not.toHaveBeenCalled();
     expect(sendMessage).toHaveBeenCalledWith(
-      chat.id,
+      dmChat.id,
+      "You are not authorized to use this command.",
+      expect.anything(),
+    );
+  });
+
+  it("keeps the /think menu available to an explicitly authorized sender outside the DM allowlist", async () => {
+    const bot = await createBot(true, true, {
+      commands: { allowFrom: { telegram: [String(from.id)] } },
+      channels: {
+        telegram: {
+          dmPolicy: "allowlist",
+          allowFrom: ["99999"],
+          streaming: { mode: "off" },
+        },
+      },
+    });
+    const sendMessage = vi.spyOn(bot.api, "sendMessage");
+
+    await bot.handleUpdate({ update_id: 2003, message: commandMessage("/think") });
+
+    expect(harness.replySpy).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith(
+      dmChat.id,
+      expect.stringContaining("Current thinking level:"),
+      expect.objectContaining({
+        reply_markup: expect.objectContaining({ inline_keyboard: expect.any(Array) }),
+      }),
+    );
+    expect(sendMessage).not.toHaveBeenCalledWith(
+      dmChat.id,
       "You are not authorized to use this command.",
       expect.anything(),
     );

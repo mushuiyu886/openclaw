@@ -226,7 +226,31 @@ async function resolveTelegramCommandAuth(params: {
     logVerbose(`Blocked telegram command in DM ${chatId}: requireTopic=true but no topic present`);
     return null;
   }
-  const rejectNotAuthorized = async () => {
+  const { effectiveAllow: dmAllow } = await resolveTelegramDmAllow({
+    cfg,
+    allowFrom: groupAllowOverride ?? params.allowFrom,
+    accountId,
+    senderId,
+    storeAllowFrom: isGroup ? [] : storeAllowFrom,
+    dmPolicy: effectiveDmPolicy,
+  });
+  const rejectNotAuthorized = async (senderIsOwner: boolean) => {
+    // Ordinary DMs silently drop senders the effective policy does not admit;
+    // native refusals must not reveal the bot (#181955). Explicit grants and
+    // admitted command-denied senders retain their existing behavior (#131408).
+    if (
+      !isGroup &&
+      !senderIsOwner &&
+      !preContextCommandAccess.authorizedByConfig &&
+      effectiveDmPolicy === "allowlist" &&
+      !dmAllow.hasWildcard &&
+      !dmAllow.entries.includes(senderId)
+    ) {
+      logVerbose(
+        `Dropped telegram native command in DM ${chatId} (sender not admitted by dmPolicy)`,
+      );
+      return null;
+    }
     await withTelegramApiErrorLogging({
       operation: "sendMessage",
       fn: () =>
@@ -256,7 +280,7 @@ async function resolveTelegramCommandAuth(params: {
       );
       return null;
     }
-    return await rejectNotAuthorized();
+    return await rejectNotAuthorized(preContextCommandAccess.senderIsOwner);
   }
 
   const policyAccess = evaluateTelegramGroupPolicyAccess({
@@ -279,7 +303,7 @@ async function resolveTelegramCommandAuth(params: {
       policyAccess.reason === "group-policy-allowlist-no-sender" ||
       policyAccess.reason === "group-policy-allowlist-unauthorized"
     ) {
-      return await rejectNotAuthorized();
+      return await rejectNotAuthorized(preContextCommandAccess.senderIsOwner);
     }
     if (policyAccess.reason === "group-chat-not-allowed") {
       logVerbose(`Blocked telegram command in group ${chatId} (group not allowed)`);
@@ -287,14 +311,6 @@ async function resolveTelegramCommandAuth(params: {
     }
   }
 
-  const { effectiveAllow: dmAllow } = await resolveTelegramDmAllow({
-    cfg,
-    allowFrom: groupAllowOverride ?? params.allowFrom,
-    accountId,
-    senderId,
-    storeAllowFrom: isGroup ? [] : storeAllowFrom,
-    dmPolicy: effectiveDmPolicy,
-  });
   const {
     authorized: commandAuthorized,
     senderIsOwner,
@@ -309,24 +325,7 @@ async function resolveTelegramCommandAuth(params: {
     ownerContext,
   });
   if (requireAuth && !commandAuthorized) {
-    // A DM sender the effective dmPolicy does not admit is dropped silently for
-    // ordinary messages; answering their commands would tell a stranger that a
-    // bot is listening (#181955). Admitted senders that only lack command
-    // permission keep the deliberate refusal (#131408).
-    if (
-      !isGroup &&
-      !senderIsOwner &&
-      !preContextCommandAccess.authorizedByConfig &&
-      effectiveDmPolicy === "allowlist" &&
-      !dmAllow.hasWildcard &&
-      !dmAllow.entries.includes(senderId)
-    ) {
-      logVerbose(
-        `Dropped telegram native command in DM ${chatId} (sender not admitted by dmPolicy)`,
-      );
-      return null;
-    }
-    return await rejectNotAuthorized();
+    return await rejectNotAuthorized(senderIsOwner);
   }
   return {
     chatId,
