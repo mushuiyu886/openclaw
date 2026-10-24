@@ -56,8 +56,8 @@ describe("RepetitionWatch", () => {
     (width) => {
       const mixture = irregularLineMixture(6000);
       const stop = firstStop(mixture, width);
-      expect(stop).toBeDefined();
-      expect(stop!).toBeLessThanOrEqual(128_000);
+      expect(stop).not.toBeUndefined();
+      expect(stop ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(128_000);
     },
   );
 
