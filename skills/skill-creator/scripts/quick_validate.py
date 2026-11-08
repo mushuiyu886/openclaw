@@ -4,6 +4,7 @@ Quick validation script for skills - minimal version
 """
 
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -96,39 +97,75 @@ def _strip_quotes(value: str) -> str:
 
 # YAML 1.2 core-schema scalars, the schema the runtime loader uses. PyYAML resolves plain
 # scalars with YAML 1.1, where `yes`/`on` are booleans; comparing those values would report a
-# duplicate that the runtime never sees.
-_CORE_NULL = re.compile(r"(?:~|null|Null|NULL|)")
+# duplicate that the runtime never sees. Identities are tagged because the runtime compares with
+# JavaScript strict equality: booleans never equal numbers, and ints/floats are both numbers.
+_CORE_NULL = re.compile(r"(?:~|null|Null|NULL)?")
 _CORE_BOOL = re.compile(r"(?:true|True|TRUE|false|False|FALSE)")
 _CORE_INT = re.compile(r"(?:[-+]?[0-9]+|0o[0-7]+|0x[0-9a-fA-F]+)")
 _CORE_FLOAT = re.compile(
     r"(?:[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?"
-    r"|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))"
+    r"|[-+]?\.(?:inf|Inf|INF)|[-+]?\.(?:nan|NaN|NAN))"
 )
 
 
-def _core_schema_scalar(value: str):
+def _core_number(value: str):
+    """Resolve a number like JavaScript: one IEEE double space for ints and floats."""
+    sign = -1 if value.startswith("-") else 1
+    digits = value.lstrip("+-")
+    try:
+        if digits.startswith("0o"):
+            return float(sign * int(digits[2:], 8))
+        if digits.startswith("0x"):
+            return float(sign * int(digits[2:], 16))
+        return sign * float(digits)
+    except (ValueError, OverflowError):
+        return sign * math.inf
+
+
+def _core_float_number(value: str):
+    lowered = value.lower()
+    if lowered in {".inf", "+.inf"}:
+        return math.inf
+    if lowered == "-.inf":
+        return -math.inf
+    if lowered.lstrip("+-") == ".nan":
+        return math.nan
+    return float(value)
+
+
+def _core_schema_identity(value: str) -> tuple:
     """Resolve one plain scalar the way the runtime's core-schema loader does."""
     if _CORE_NULL.fullmatch(value):
-        return None
+        return ("null",)
     if _CORE_BOOL.fullmatch(value):
-        return value.lower() == "true"
+        return ("bool", value.lower() == "true")
     if _CORE_INT.fullmatch(value):
-        sign = -1 if value.startswith("-") else 1
-        digits = value.lstrip("+-")
-        base = 8 if digits.startswith("0o") else 16 if digits.startswith("0x") else 10
-        return sign * int(digits[2:] if base != 10 else digits, base)
+        return ("number", _core_number(value))
     if _CORE_FLOAT.fullmatch(value):
-        return float(value)
-    return value
+        return ("number", _core_float_number(value))
+    return ("string", value)
 
 
-def _core_schema_key(loader, key_node, deep: bool):
+def _same_key(left: tuple, right: tuple) -> bool:
+    if left[0] == "number" and right[0] == "number":
+        # JavaScript strict equality: NaN never equals itself.
+        if math.isnan(left[1]) or math.isnan(right[1]):
+            return False
+    return left == right
+
+
+def _core_schema_key(loader, key_node, deep: bool) -> tuple:
     """Resolve a mapping key so duplicate detection matches the runtime identity."""
     if isinstance(key_node, yaml.ScalarNode):
         if key_node.style is None:
-            return _core_schema_scalar(key_node.value)
-        return loader.construct_object(key_node, deep=deep)
-    return loader.construct_object(key_node, deep=deep)
+            # An explicit !!str tag keeps plain text as a string even when it looks numeric.
+            if key_node.tag == "tag:yaml.org,2002:str":
+                return ("string", key_node.value)
+            return _core_schema_identity(key_node.value)
+        return ("string", loader.construct_object(key_node, deep=deep))
+    # Collection keys are unhashable and cannot be built by the runtime's string key map either;
+    # compare their text so duplicate reporting stays deterministic.
+    return ("node", repr(loader.construct_object(key_node, deep=deep)))
 
 
 def _load_frontmatter(frontmatter_text: str):
@@ -136,23 +173,21 @@ def _load_frontmatter(frontmatter_text: str):
 
     class UniqueKeyLoader(yaml.SafeLoader):
         def construct_mapping(self, node, deep=False):
-            if isinstance(node, yaml.MappingNode):
-                # Expand merge keys first so their contents are checked like ordinary pairs.
-                self.flatten_mapping(node)
-            mapping = {}
             keys = []
-            for key_node, value_node in node.value:
+            for key_node, _ in node.value:
+                # Merge keys are flattened by SafeConstructor; their keys are not duplicates.
+                if key_node.tag == "tag:yaml.org,2002:merge":
+                    continue
                 key = _core_schema_key(self, key_node, deep)
-                if key in keys:
+                if any(_same_key(key, seen) for seen in keys):
                     raise yaml.constructor.ConstructorError(
                         "while constructing a mapping",
                         node.start_mark,
-                        f"found duplicate key {key!r}",
+                        f"found duplicate key {key[1]!r}",
                         key_node.start_mark,
                     )
                 keys.append(key)
-                mapping[key] = self.construct_object(value_node, deep=deep)
-            return mapping
+            return super().construct_mapping(node, deep=deep)
 
     return yaml.load(frontmatter_text, Loader=UniqueKeyLoader)
 

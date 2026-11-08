@@ -222,7 +222,12 @@ metadata: |
         self.assertTrue(*self.validate_content(content))
 
     def test_duplicate_key_check_still_rejects_core_schema_duplicates(self):
-        for mapping in ("{on: active, on: inactive}", "{1: first, 01: second}"):
+        for mapping in (
+            "{on: active, on: inactive}",
+            "{1: first, 01: second}",
+            "{1: first, 1.0: second}",
+            "{.inf: first, .inf: second}",
+        ):
             with self.subTest(mapping=mapping):
                 content = (
                     "---\n"
@@ -235,6 +240,42 @@ metadata: |
                 valid, message = self.validate_content(content)
                 self.assertFalse(valid)
                 self.assertIn("found duplicate key", message)
+
+    def test_duplicate_key_check_keeps_booleans_distinct_from_numbers(self):
+        # JavaScript strict equality separates booleans from numbers; YAML 1.1 collapses them.
+        for mapping in ("{true: enabled, 1: one}", "{false: disabled, 0: zero}"):
+            with self.subTest(mapping=mapping):
+                content = (
+                    "---\n"
+                    "name: sample-skill\n"
+                    "description: Summarize meetings\n"
+                    f"metadata: {mapping}\n"
+                    "---\n"
+                    "# Skill\n"
+                )
+                self.assertTrue(*self.validate_content(content))
+
+    def test_duplicate_key_check_honors_explicit_string_tags(self):
+        content = (
+            "---\n"
+            "name: sample-skill\n"
+            "description: Summarize meetings\n"
+            "metadata: {!!str 01: tagged, 1: number}\n"
+            "---\n"
+            "# Skill\n"
+        )
+        self.assertTrue(*self.validate_content(content))
+
+    def test_duplicate_key_check_accepts_merge_overrides(self):
+        content = (
+            "---\n"
+            "name: merge-skill\n"
+            "description: Summarize meetings\n"
+            "metadata: {<<: &base {owner: team}, owner: me}\n"
+            "---\n"
+            "# Skill\n"
+        )
+        self.assertTrue(*self.validate_content(content))
 
     def test_colon_rich_recovery_keeps_other_yaml_errors(self):
         content = (
