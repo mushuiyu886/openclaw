@@ -94,17 +94,55 @@ def _strip_quotes(value: str) -> str:
     return value[1:-1] if quote in {"'", '"'} and value.endswith(quote) else value
 
 
+# YAML 1.2 core-schema scalars, the schema the runtime loader uses. PyYAML resolves plain
+# scalars with YAML 1.1, where `yes`/`on` are booleans; comparing those values would report a
+# duplicate that the runtime never sees.
+_CORE_NULL = re.compile(r"(?:~|null|Null|NULL|)")
+_CORE_BOOL = re.compile(r"(?:true|True|TRUE|false|False|FALSE)")
+_CORE_INT = re.compile(r"(?:[-+]?[0-9]+|0o[0-7]+|0x[0-9a-fA-F]+)")
+_CORE_FLOAT = re.compile(
+    r"(?:[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?"
+    r"|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))"
+)
+
+
+def _core_schema_scalar(value: str):
+    """Resolve one plain scalar the way the runtime's core-schema loader does."""
+    if _CORE_NULL.fullmatch(value):
+        return None
+    if _CORE_BOOL.fullmatch(value):
+        return value.lower() == "true"
+    if _CORE_INT.fullmatch(value):
+        sign = -1 if value.startswith("-") else 1
+        digits = value.lstrip("+-")
+        base = 8 if digits.startswith("0o") else 16 if digits.startswith("0x") else 10
+        return sign * int(digits[2:] if base != 10 else digits, base)
+    if _CORE_FLOAT.fullmatch(value):
+        return float(value)
+    return value
+
+
+def _core_schema_key(loader, key_node, deep: bool):
+    """Resolve a mapping key so duplicate detection matches the runtime identity."""
+    if isinstance(key_node, yaml.ScalarNode):
+        if key_node.style is None:
+            return _core_schema_scalar(key_node.value)
+        return loader.construct_object(key_node, deep=deep)
+    return loader.construct_object(key_node, deep=deep)
+
+
 def _load_frontmatter(frontmatter_text: str):
     """Load YAML with the loader's duplicate-key rejection."""
 
     class UniqueKeyLoader(yaml.SafeLoader):
         def construct_mapping(self, node, deep=False):
+            if isinstance(node, yaml.MappingNode):
+                # Expand merge keys first so their contents are checked like ordinary pairs.
+                self.flatten_mapping(node)
+            mapping = {}
             keys = []
-            for key_node, _ in node.value:
-                # Merge keys are flattened by SafeConstructor and have no constructor.
-                if key_node.tag == "tag:yaml.org,2002:merge":
-                    continue
-                key = self.construct_object(key_node, deep=deep)
+            for key_node, value_node in node.value:
+                key = _core_schema_key(self, key_node, deep)
                 if key in keys:
                     raise yaml.constructor.ConstructorError(
                         "while constructing a mapping",
@@ -113,7 +151,8 @@ def _load_frontmatter(frontmatter_text: str):
                         key_node.start_mark,
                     )
                 keys.append(key)
-            return super().construct_mapping(node, deep=deep)
+                mapping[key] = self.construct_object(value_node, deep=deep)
+            return mapping
 
     return yaml.load(frontmatter_text, Loader=UniqueKeyLoader)
 

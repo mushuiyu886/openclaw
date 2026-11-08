@@ -209,6 +209,33 @@ metadata: |
         )
         self.assertTrue(*self.validate_content(content))
 
+    def test_duplicate_key_check_uses_the_runtime_core_schema(self):
+        # YAML 1.1 resolves yes/on to True; the runtime core schema keeps them distinct strings.
+        content = (
+            "---\n"
+            "name: sample-skill\n"
+            "description: Summarize meetings\n"
+            "metadata: {yes: enabled, on: active}\n"
+            "---\n"
+            "# Skill\n"
+        )
+        self.assertTrue(*self.validate_content(content))
+
+    def test_duplicate_key_check_still_rejects_core_schema_duplicates(self):
+        for mapping in ("{on: active, on: inactive}", "{1: first, 01: second}"):
+            with self.subTest(mapping=mapping):
+                content = (
+                    "---\n"
+                    "name: sample-skill\n"
+                    "description: Summarize meetings\n"
+                    f"metadata: {mapping}\n"
+                    "---\n"
+                    "# Skill\n"
+                )
+                valid, message = self.validate_content(content)
+                self.assertFalse(valid)
+                self.assertIn("found duplicate key", message)
+
     def test_colon_rich_recovery_keeps_other_yaml_errors(self):
         content = (
             "---\n"
